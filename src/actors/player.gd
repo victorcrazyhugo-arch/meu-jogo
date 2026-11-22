@@ -147,6 +147,8 @@ func _physics_process(dt: float) -> void:
 	if G.paused or not G.in_game:
 		return
 	if sv.dead:
+		if not dead_handled:
+			_on_death()
 		_dead_tick(dt)
 		return
 	fire_cd = maxf(0.0, fire_cd - dt)

@@ -39,6 +39,9 @@ var down_time := 0.0
 var alerted := false
 var corpse_done := false
 var floor_i := 0
+var _fi := 0
+var _skip_acc := 0.0
+var _every := 1
 
 
 func setup(v: Dictionary) -> void:
@@ -183,6 +186,21 @@ func _physics_process(dt: float) -> void:
 	if dead:
 		_dead_tick(dt)
 		return
+	# zumbis distantes seguem as mesmas regras com passo de tempo maior (menos custo de CPU);
+	# perto do jogador, inclusive fora da camera, a atualizacao e completa
+	_fi += 1
+	_every = 1
+	if state != ATTACK and state != CLIMB and state != DOWN:
+		if dist_p > 46.0:
+			_every = 4
+		elif dist_p > 22.0:
+			_every = 2
+	if _every > 1:
+		_skip_acc += dt
+		if (_fi + seed_v) % _every != 0:
+			return
+		dt = _skip_acc
+	_skip_acc = 0.0
 	state_t += dt
 	cd = maxf(0.0, cd - dt)
 	think_t -= dt
@@ -276,7 +294,12 @@ func _physics_process(dt: float) -> void:
 		velocity.y -= 18.0 * dt
 	else:
 		velocity.y = -0.5
-	move_and_slide()
+	if _every > 1:
+		velocity = Vector3(velocity.x * _every, velocity.y, velocity.z * _every)
+		move_and_slide()
+		velocity = Vector3(velocity.x / _every, velocity.y, velocity.z / _every)
+	else:
+		move_and_slide()
 	if want.length() > 0.1:
 		_face(want, dt, 6.0)
 		# deteccao de bloqueio

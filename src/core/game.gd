@@ -1,7 +1,7 @@
 extends Node
 ## G - estado global: configuracoes do aparelho, regras de sandbox, relogio e referencias.
 
-const VERSION := "0.1.0"
+const VERSION := "0.1.1"
 const SAVE_VERSION := 1
 const MIN_PER_DAY := 1440.0
 const START_HOUR := 9.0

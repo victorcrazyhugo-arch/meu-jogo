@@ -31,7 +31,7 @@ const SWAP := {
 }
 ## Reparos com material: item consumido, ferramentas, habilidade/nivel, ganho e teto de condicao.
 const FIX := {
-	"motor": {"label": "Reparar motor (1 peça de motor)", "item": "peca_motor", "tools": ["chave_inglesa"], "sk": "mecanica", "lvl": 2, "gain": 0.14, "max": 1.0, "t": 14.0, "xp": 16.0},
+	"motor": {"label": "Reparar motor (1 peça de motor)", "item": "peca_motor", "tools": ["chave_inglesa"], "sk": "mecanica", "lvl": 2, "gain": 0.10, "max": 1.0, "t": 14.0, "xp": 16.0},
 	"tanque": {"label": "Remendar tanque (fita adesiva)", "item": "fita", "tools": [], "sk": "mecanica", "lvl": 1, "gain": 0.25, "max": 0.8, "t": 7.0, "xp": 8.0},
 	"capo": {"label": "Desamassar capô (1 chapa de metal)", "item": "chapa_metal", "tools": ["martelo"], "sk": "mecanica", "lvl": 1, "gain": 0.30, "max": 1.0, "t": 10.0, "xp": 9.0},
 	"portas": {"label": "Consertar portas (1 chapa de metal)", "item": "chapa_metal", "tools": ["martelo"], "sk": "mecanica", "lvl": 1, "gain": 0.30, "max": 1.0, "t": 10.0, "xp": 9.0},
@@ -432,21 +432,23 @@ func _apply_lights() -> void:
 	var fc := part_cond("farois")
 	var on := lights_on and battery > 0.0 and fc > 0.0
 	if on and _lamps.is_empty():
-		var ly: float = float(spec["belt"]) - 0.17
+		# os fachos nascem acima e a frente do para-choque: com a fonte na altura real do farol a luz
+		# chega rasante e quase nao clareia o chao
 		for i in 2:
 			var l := SpotLight3D.new()
 			l.spot_range = 38.0
-			l.spot_angle = 34.0
+			l.spot_angle = 42.0
+			l.spot_attenuation = 0.4
 			l.light_color = Color(1.0, 0.96, 0.86)
 			l.shadow_enabled = false
-			l.position = Vector3((-1.0 if i == 0 else 1.0) * (_wid * 0.5 - 0.26), ly, -_len * 0.5 - 0.08)
-			l.rotation = Vector3(-0.055, 0.0, 0.0)
+			l.position = Vector3((-1.0 if i == 0 else 1.0) * (_wid * 0.5 - 0.26), 2.4, -_len * 0.5 - 0.6)
+			l.rotation = Vector3(-0.30, 0.0, 0.0)
 			add_child(l)
 			_lamps.append(l)
 	for i in _lamps.size():
 		var lamp: SpotLight3D = _lamps[i]
 		lamp.visible = on and (i == 1 or fc >= 0.45)     # com farois muito danificados so um acende
-		lamp.light_energy = 2.4 * (0.55 + 0.45 * fc)
+		lamp.light_energy = 3.2 * (0.55 + 0.45 * fc)
 	_glow.visible = on
 
 
@@ -1268,7 +1270,7 @@ func _xp(p, key: String, sk: String, amount: float) -> void:
 func _do_inspect(key: String, p) -> String:
 	if not insp.has(key):
 		insp[key] = true
-		p.sv.add_xp("mecanica", 3.0)
+		_xp(p, key + "_i", "mecanica", 3.0)
 	var c: float = parts.get(key, 0.0)
 	return "%s: %d%% — %s." % [PART_NAMES[key], roundi(c * 100.0), _part_info(key)]
 
@@ -1340,7 +1342,7 @@ func _do_fix(key: String, p) -> String:
 		_xp(p, key, sk, float(fx["xp"]) * 0.3)
 		return "O reparo não deu certo e o material foi perdido."
 	var c: float = parts[key]
-	var gain: float = float(fx["gain"]) * (1.0 + 0.06 * float(lvl))
+	var gain: float = float(fx["gain"]) * (1.0 + 0.05 * float(lvl))
 	c = minf(float(fx["max"]), c + gain)
 	parts[key] = c
 	_xp(p, key, sk, float(fx["xp"]))
@@ -1350,11 +1352,12 @@ func _do_fix(key: String, p) -> String:
 func _do_salvage(p) -> String:
 	var lvl: int = p.sv.level("mecanica")
 	var c: float = parts["motor"]
-	parts["motor"] = maxf(0.0, c - 0.3)
+	# custa mais condicao do que as pecas retiradas devolvem num reparo (nao ha ganho em repetir)
+	parts["motor"] = maxf(0.0, c - 0.35)
 	if randf() < _fail_chance(lvl, 3):
 		_xp(p, "motor_d", "mecanica", 5.0)
 		return "Você desmontou parte do motor, mas não aproveitou nenhuma peça."
-	var n := 1 + (1 if c > 0.6 else 0) + (1 if lvl >= 6 else 0)
+	var n := 2 if (c > 0.6 and lvl >= 6) else 1
 	p.inv.add(Items.make("peca_motor", n))
 	_xp(p, "motor_d", "mecanica", 14.0)
 	return "Você retirou %d %s do motor." % [n, "peça" if n == 1 else "peças"]
@@ -1498,6 +1501,7 @@ func _wake() -> void:
 
 func _sleep() -> void:
 	_awake = false
+	engine_on = false
 	speed = 0.0
 	velocity = Vector3.ZERO
 	_pitch = 0.0
@@ -1644,13 +1648,14 @@ func _tick(dt: float) -> void:
 	var steer_in := 0.0
 	var gas := false
 	var brk := false
-	if has_driver:
+	if has_driver and (G.ui == null or not G.ui.is_open()):
 		steer_in = clampf(G.mv.x, -1.0, 1.0)
 		if absf(steer_in) < 0.08:
 			steer_in = 0.0
 		gas = G.held.has("gas")
 		brk = G.held.has("brake")
-		if _desktop and (G.ui == null or not G.ui.is_open()):
+		if _desktop:
+			# teclado, para testes em computador (o HUD ja converte A/D em G.mv.x)
 			gas = gas or Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)
 			brk = brk or Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN)
 	_ft -= dt
@@ -1701,7 +1706,7 @@ func _tick(dt: float) -> void:
 	if absf(steer_in) > 0.9 and av > 11.0:
 		res += 1.4                                 # pneus arrastando em curva no limite
 		skid = true
-	if braking and has_driver and av > 9.0:
+	if braking and has_driver and av > 15.0:
 		skid = true
 	speed += drive * dt
 	if speed > 0.0:
@@ -1733,20 +1738,47 @@ func _tick(dt: float) -> void:
 			var worst := 0.0
 			var wn := Vector3.ZERO
 			var wc: Object = null
+			# no modo flutuante o motor de fisica nao altera "velocity": o deslizamento e calculado aqui
+			var vel := pre
 			for i in nc:
 				var kc := get_slide_collision(i)
-				var imp := -pre.dot(kc.get_normal())
+				var nrm := kc.get_normal()
+				nrm.y = 0.0
+				if nrm.length() < 0.01:
+					continue
+				nrm = nrm.normalized()
+				var imp := -pre.dot(nrm)
 				if imp > worst:
 					worst = imp
-					wn = kc.get_normal()
+					wn = nrm
 					wc = kc.get_collider()
-			speed = velocity.dot(fwd)
-			if worst > 4.0 and absf(speed) < absf(v0) * 0.35:
-				speed = -signf(v0) * minf(worst * 0.1, 1.2)       # pequeno ricochete
+				if vel.dot(nrm) < 0.0:
+					vel = vel.slide(nrm)
+			var sgn := -1.0 if v0 < 0.0 else 1.0
+			var tl := vel.length()
+			var heading := fwd * sgn
+			if tl > 0.5 and (vel / tl).dot(heading) > 0.5:
+				# batida de raspao: conserva a velocidade ao longo do obstaculo e o carro e desviado
+				speed = sgn * tl * 0.985
+				rotation.y += clampf(heading.signed_angle_to(vel / tl, Vector3.UP), -3.0 * dt, 3.0 * dt)
+			else:
+				speed = vel.dot(fwd)
+				if worst > 4.0:
+					speed = -sgn * minf(worst * 0.1, 1.2)          # batida de frente: pequeno ricochete
+			# preso contra algo: a velocidade nunca fica acima do deslocamento real
+			var real := get_position_delta().length() / maxf(dt, 0.001)
+			if absf(speed) > real + 1.5:
+				speed = signf(speed) * real
 			if worst > 2.5 and _crash_cd <= 0.0:
-				_impact(worst, wn, wc, signf(v0))
-		if absf(global_position.y) > 0.001:
-			global_position.y = 0.0
+				_impact(worst, wn, wc, sgn)
+		# mantem o veiculo no chao e dentro dos limites do mapa (fora deles nao ha regioes para guarda-lo)
+		var gp := global_position
+		var cx := clampf(gp.x, WorldGen.X0 + 4.0, WorldGen.X1 - 4.0)
+		var cz := clampf(gp.z, WorldGen.Z0 + 4.0, WorldGen.Z1 - 4.0)
+		if cx != gp.x or cz != gp.z or absf(gp.y) > 0.001:
+			if cx != gp.x or cz != gp.z:
+				speed = 0.0
+			global_position = Vector3(cx, 0.0, cz)
 		_run_over()
 
 	# ---- motor: consumo, carga da bateria e pane seca

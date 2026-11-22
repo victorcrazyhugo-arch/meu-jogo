@@ -235,25 +235,51 @@ func _spawn(v: Dictionary) -> void:
 	active.append(z)
 
 
+var _sep_i := 0
+
+
+## Separacao suave entre zumbis (evita que ocupem o mesmo lugar). Posicoes copiadas uma vez
+## para vetores locais; executa em quadros alternados.
 func _separate() -> void:
+	_sep_i += 1
+	if _sep_i % 2 != 0:
+		return
 	var n := active.size()
+	var px := PackedFloat32Array()
+	var py := PackedFloat32Array()
+	var pz := PackedFloat32Array()
+	var ok := PackedByteArray()
+	px.resize(n)
+	py.resize(n)
+	pz.resize(n)
+	ok.resize(n)
 	for i in n:
-		var a: Zombie = active[i]
-		if a.dead or a.state == Zombie.CLIMB:
+		var z: Zombie = active[i]
+		var gp := z.global_position
+		px[i] = gp.x
+		py[i] = gp.y
+		pz[i] = gp.z
+		ok[i] = 0 if (z.dead or z.state == Zombie.CLIMB) else 1
+	for i in n:
+		if ok[i] == 0:
 			continue
+		var ax := px[i]
+		var az := pz[i]
+		var ay := py[i]
 		for j in range(i + 1, n):
-			var b: Zombie = active[j]
-			if b.dead:
+			var dx := ax - px[j]
+			if dx > 0.65 or dx < -0.65:
 				continue
-			var d: Vector3 = a.global_position - b.global_position
-			if absf(d.y) > 1.5:
+			var dz := az - pz[j]
+			if dz > 0.65 or dz < -0.65 or ok[j] == 0 or absf(ay - py[j]) > 1.5:
 				continue
-			d.y = 0
-			var l2 := d.length_squared()
+			var l2 := dx * dx + dz * dz
 			if l2 < 0.42 and l2 > 0.0001:
-				var push := d.normalized() * (0.65 - sqrt(l2)) * 3.0
-				a.sep += push
-				b.sep -= push
+				var l := sqrt(l2)
+				var f := (0.65 - l) * 3.0 / l
+				var push := Vector3(dx * f, 0, dz * f)
+				active[i].sep += push
+				active[j].sep -= push
 
 
 ## Reaparecimento lento em regioes ja visitadas e longe do jogador (configuravel).

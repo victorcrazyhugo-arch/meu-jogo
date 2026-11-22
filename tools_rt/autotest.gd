@@ -32,6 +32,8 @@ func frames(k: int) -> void:
 
 
 func shot(nm: String) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
 	await frames(3)
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
@@ -456,12 +458,12 @@ func scn_carro() -> void:
 	var ok: bool = v.enter_player(p)
 	check("entrar no veiculo", ok and p.vehicle == v)
 	await wait(0.5)
-	if not v.engine_on:
+	# a partida pode falhar conforme o estado do motor: ate 6 tentativas
+	for attempt in 6:
+		if v.engine_on:
+			break
 		v.try_start()
-	await wait(1.5)
-	if not v.engine_on:
-		v.try_start()
-		await wait(1.5)
+		await wait(1.6)
 	check("motor liga", v.engine_on, "motor=%.2f" % v.part_cond("motor"))
 	var p0: Vector3 = v.global_position
 	G.held["gas"] = true
@@ -483,4 +485,336 @@ func scn_carro() -> void:
 	check("sair do veiculo", p.vehicle == null and p.global_position.distance_to(v.global_position) < 5.0)
 	var sd: Dictionary = G.vehicles.to_dict()
 	check("estado dos veiculos serializavel", var_to_bytes(sd).size() > 20, "bytes=%d" % var_to_bytes(sd).size())
+	print("RESULTADO: %d falha(s)" % _fails)
+
+
+## Mede uma cena por alguns segundos de jogo: tempos de quadro, CPU de script/fisica e carga de desenho.
+func sample(nm: String, secs: float = 6.0) -> void:
+	var ft: Array = []
+	var proc := 0.0
+	var phys := 0.0
+	var draws := 0.0
+	var prims := 0.0
+	var objs := 0.0
+	var n := 0
+	var last := Time.get_ticks_usec()
+	var t_end := Time.get_ticks_msec() + int(secs * 1000.0)
+	while Time.get_ticks_msec() < t_end:
+		await get_tree().process_frame
+		var now := Time.get_ticks_usec()
+		ft.append((now - last) / 1000.0)
+		last = now
+		proc += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+		phys += Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+		draws += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+		prims += Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)
+		objs += Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)
+		n += 1
+	ft.sort()
+	var avg := 0.0
+	for x in ft:
+		avg += x
+	avg /= maxf(1.0, ft.size())
+	var p95: float = ft[int(ft.size() * 0.95)] if ft.size() > 1 else 0.0
+	var p99: float = ft[mini(ft.size() - 1, int(ft.size() * 0.99))] if ft.size() > 1 else 0.0
+	print("PERF | %s | quadros %d | medio %.1f ms | p95 %.1f | p99 %.1f | max %.1f | script %.2f ms | fisica %.2f ms | desenhos %d | primitivas %d | objetos %d | memoria %.0f MB | zumbis ativos %d | regioes %d | edificios %d" % [
+		nm, n, avg, p95, p99, ft[ft.size() - 1] if not ft.is_empty() else 0.0, proc / maxf(1, n), phys / maxf(1, n), int(draws / maxf(1, n)), int(prims / maxf(1, n)), int(objs / maxf(1, n)),
+		Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, G.zombies.active_count(), G.world.chunks.size(), G.world.buildings.size()])
+
+
+func scn_perf() -> void:
+	G.settings["graphics"] = 1
+	G.settings["dyn_res"] = false
+	await start("policial")
+	var p: Player = G.player
+	p.god = true
+	print("PERF | ambiente: %s | %s | %s | perfil grafico Equilibrado | %dx%d" % [OS.get_name(), RenderingServer.get_video_adapter_name(), OS.get_processor_name(), get_viewport().size.x, get_viewport().size.y])
+	await hour(11.0)
+	await sample("interior da casa inicial")
+	await tp(Vector3(-946, 0.1, -26), 0.0, -0.2)
+	await sample("avenida de Santa Aurora (dia)")
+	await tp(Vector3(-520, 0.1, -452), 0.5, -0.12)
+	await sample("cabana cercada de vegetacao densa")
+	await tp(Vector3(900, 0.1, -32), -PI * 0.5, -0.15)
+	await wait(2.0)
+	Sfx.noise(p.global_position, 90.0)
+	await wait(3.0)
+	await sample("centro de Porto Bruma com horda (alarme sonoro)")
+	# hospital (3 andares)
+	var hosp = null
+	for l in G.world.gen.lots:
+		if l["type"] == "hospital":
+			hosp = l
+	if hosp != null:
+		var hb: Rect2i = hosp["b"]
+		await tp(Vector3(hb.position.x + hb.size.x * 0.5, 0.1, hb.position.y + hb.size.y * 0.5 + 1.0), 0.0, -0.2)
+		await sample("hospital, andar terreo")
+		await tp(Vector3(hb.position.x + hb.size.x * 0.5, 6.1, hb.position.y + hb.size.y * 0.5 + 1.0), 0.0, -0.2)
+		await sample("hospital, terceiro andar")
+	# noite, tempestade, horda e disparos
+	await tp(Vector3(900, 0.1, -32), -PI * 0.5, -0.15)
+	G.time_min = floorf(G.time_min / 1440.0) * 1440.0 + 22.0 * 60.0
+	G.env.set_weather("tempestade", 600.0)
+	G.env.rain = 1.0
+	G.env.cloud = 1.0
+	p.inv.primary = Items.make("pistola")
+	p.inv.primary["mag"] = 15
+	p.inv.primary["ch"] = 1
+	p.inv.add(Items.make("mun_9mm", 60))
+	p.refresh_weapon()
+	p.aiming = true
+	await wait(1.0)
+	G.held["attack"] = true
+	await sample("noite com tempestade, horda e disparos")
+	G.held.erase("attack")
+	p.aiming = false
+	# dirigir rapido pela rodovia entre as cidades (carregamento de regioes novas)
+	await hour(13.0)
+	G.env.set_weather("limpo", 600.0)
+	G.env.rain = 0.0
+	G.env.cloud = 0.0
+	var v = null
+	for c in G.world.gen.cars:
+		if c["p"].distance_to(Vector2(-946, 0)) < 260.0:
+			await tp(Vector3(c["p"].x + 3.5, 0.1, c["p"].y + 3.5), 0.8, -0.2)
+			v = G.vehicles.nearest(p.global_position, 9.0)
+			if v != null:
+				break
+	if v != null:
+		v.locked = false
+		v.has_key = true
+		v.fuel = v.fuel_cap
+		v.battery = 1.0
+		v.global_position = Vector3(-690, 0.3, -32)
+		v.rotation.y = -PI * 0.5
+		await tp(Vector3(-690, 0.2, -29), -PI * 0.5, -0.2)
+		v = G.vehicles.nearest(p.global_position, 14.0)
+		if v == null:
+			print("PERF | rodovia: veiculo nao disponivel apos o reposicionamento")
+			return
+		v.enter_player(p)
+		await wait(0.5)
+		for i in 4:
+			if not v.engine_on:
+				v.try_start()
+				await wait(1.5)
+		G.held["gas"] = true
+		var x0: float = v.global_position.x
+		await sample("dirigindo pela rodovia entre as cidades", 25.0)
+		print("PERF | rodovia: percorridos %.0f m, velocidade final %.0f km/h, regioes carregadas %d" % [absf(v.global_position.x - x0), absf(v.speed) * 3.6, G.world.chunks.size()])
+		G.held.erase("gas")
+	# salvar apos mudancas extensas
+	var t0 := Time.get_ticks_msec()
+	var ok: bool = G.main.save_game(false)
+	var f := FileAccess.open("user://mundos/autotest/save.dat", FileAccess.READ)
+	print("PERF | salvar: %s em %d ms, arquivo %.0f KB" % ["ok" if ok else "FALHA", Time.get_ticks_msec() - t0, (f.get_length() / 1024.0) if f != null else 0.0])
+
+
+## Gera docs/CATALOGO.md a partir dos dados reais do jogo (sem iniciar partida).
+func scn_catalogo() -> void:
+	var gen := WorldGen.new()
+	var L: Array = []
+	L.append("# Catálogo de conteúdo — Última Bruma %s" % G.VERSION)
+	L.append("")
+	L.append("Gerado automaticamente a partir dos dados do jogo (`tools_rt/autotest.gd`, cenário `catalogo`). Os números abaixo são contagens reais do que está no projeto nesta versão.")
+	L.append("")
+	L.append("## Mapa")
+	L.append("")
+	L.append("- Dimensões: %d m × %d m (%.1f km²), terreno plano, carregado em regiões de %d m." % [int(WorldGen.X1 - WorldGen.X0), int(WorldGen.Z1 - WorldGen.Z0), (WorldGen.X1 - WorldGen.X0) * (WorldGen.Z1 - WorldGen.Z0) / 1.0e6, WorldGen.CH])
+	var cities := {0: 0, 1: 0, 2: 0}
+	var by_type := {}
+	for l in gen.lots:
+		if l["type"] == "praca":
+			continue
+		cities[l["city"]] = int(cities[l["city"]]) + 1
+		by_type[l["type"]] = int(by_type.get(l["type"], 0)) + 1
+	L.append("- Cidades: exatamente 2 — Santa Aurora (%d edifícios, %d × %d m) e Porto Bruma (%d edifícios, %d × %d m)." % [cities[1], int(WorldGen.SA.size.x), int(WorldGen.SA.size.y), cities[2], int(WorldGen.PB.size.x), int(WorldGen.PB.size.y)])
+	L.append("- Zona rural: %d construções (fazendas, cabanas, postos, casas isoladas), %d plantações, %d acampamentos." % [cities[0], gen.fields.size(), gen.camps.size()])
+	L.append("- Total de edifícios com interior explorável: %d. Postes de iluminação: %d. Veículos previstos no mapa: %d." % [cities[0] + cities[1] + cities[2], gen.lamps.size(), gen.cars.size()])
+	var dist := WorldGen.PB.position.x - WorldGen.SA.end.x
+	var cc := (WorldGen.PB.position.x + WorldGen.PB.size.x * 0.5) - (WorldGen.SA.position.x + WorldGen.SA.size.x * 0.5)
+	L.append("- Distância entre as bordas das cidades pela rodovia: %d m; centro a centro: %d m." % [int(dist), int(cc)])
+	L.append("- Tempos aproximados centro a centro: andando (1,6 m/s) %d min; trotando (3,3 m/s) %d min; de carro a 70 km/h %.1f min." % [int(cc / 1.6 / 60.0), int(cc / 3.3 / 60.0), cc / (70.0 / 3.6) / 60.0])
+	L.append("- Animais: nenhum (nenhuma entidade, som ou sistema de fauna existe no projeto).")
+	L.append("")
+	L.append("| Tipo de edifício | Quantidade |")
+	L.append("|---|---:|")
+	var tk: Array = by_type.keys()
+	tk.sort()
+	for t in tk:
+		L.append("| %s | %d |" % [WorldGen.TYPES[t]["n"], by_type[t]])
+	L.append("")
+	L.append("## Vestuário")
+	L.append("")
+	L.append("- Peças base: %d. Variantes individuais (peça × cor × estampa/detalhe): **%d**." % [Clothes.BASES.size(), Clothes.count_variants()])
+	L.append("- Cada variante altera cor, estampa ou detalhe da malha do personagem. O número de cortes realmente distintos é o de peças base; as demais variantes são paramétricas.")
+	L.append("")
+	L.append("| Categoria | Peças base | Variantes |")
+	L.append("|---|---:|---:|")
+	var cs := Clothes.count_by_slot()
+	for slot in Clothes.SLOT_ORDER + ["bag"]:
+		if not cs.has(slot):
+			continue
+		L.append("| %s | %d | %d |" % [Clothes.SLOT_NAMES[slot], Clothes.bases_for(slot).size(), cs[slot]])
+		cs.erase(slot)
+	L.append("")
+	L.append("| Peça base | Categoria | Cores | Estampas/detalhes |")
+	L.append("|---|---|---:|---|")
+	for b in Clothes.BASES:
+		var bd: Dictionary = Clothes.BASES[b]
+		L.append("| %s | %s | %d | %s |" % [bd["n"], Clothes.SLOT_NAMES[bd["slot"]], bd["cols"].size(), ", ".join(bd["pats"])])
+	L.append("")
+	L.append("## Itens")
+	L.append("")
+	var cats := {}
+	for id in Items.D:
+		var c: String = Items.D[id].get("cat", "Diversos")
+		if not cats.has(c):
+			cats[c] = []
+		cats[c].append(String(Items.D[id]["n"]))
+	L.append("Total: %d itens (sem contar vestuário)." % Items.D.size())
+	L.append("")
+	for c in Items.CAT_ORDER:
+		if cats.has(c):
+			L.append("- **%s** (%d): %s." % [c, cats[c].size(), ", ".join(cats[c])])
+	L.append("")
+	L.append("## Receitas, construções, culturas e móveis")
+	L.append("")
+	var rn: Array = []
+	for r in Recipes.LIST:
+		rn.append(String(r["n"]))
+	L.append("- **Receitas** (%d): %s." % [rn.size(), ", ".join(rn)])
+	var sn: Array = []
+	for s in Base.BUILD_ORDER:
+		sn.append(String(Base.STRUCTS[s]["n"]))
+	L.append("- **Estruturas construíveis** (%d): %s. Colocáveis a partir de item: gerador, saco de dormir, barraca." % [sn.size(), ", ".join(sn)])
+	var cn: Array = []
+	for c in Base.CROPS:
+		cn.append("%s (%d dias)" % [Base.CROPS[c]["n"], int(Base.CROPS[c]["days"])])
+	L.append("- **Culturas** (%d): %s." % [cn.size(), ", ".join(cn)])
+	var fn: Array = []
+	for f in BPlan.FURN:
+		fn.append(String(BPlan.FURN[f]["n"]))
+	L.append("- **Móveis e objetos de interior** (%d modelos): %s." % [fn.size(), ", ".join(fn)])
+	L.append("- **Tabelas de saque por tipo de recipiente**: %d." % Items.LOOT.size())
+	L.append("- **Profissões**: %d. **Traços**: %d. **Habilidades**: %d." % [Survivor.PROFESSIONS.size(), Survivor.TRAITS.size() - 1, Survivor.SKILLS.size()])
+	L.append("- **Predefinições de sandbox**: %s." % ", ".join(G.SANDBOX_PRESETS.keys()))
+	L.append("")
+	var f := FileAccess.open(out + "/CATALOGO.md", FileAccess.WRITE)
+	f.store_string("\n".join(L) + "\n")
+	f.close()
+	print("CATALOGO escrito: ", out + "/CATALOGO.md", " variantes=", Clothes.count_variants())
+
+
+func _wait_game() -> void:
+	var guard := 0
+	while (not G.in_game or G.main.starting) and guard < 6000:
+		guard += 1
+		await get_tree().process_frame
+	await wait(0.5)
+
+
+## Robustez do salvamento, migracao, morte, cadaver, reanimacao e novo sobrevivente no mesmo mundo.
+func scn_salvar() -> void:
+	await start("enfermeiro")
+	var p: Player = G.player
+	var dir := "user://mundos/autotest"
+	var b: Building = p.cur_building
+	var lot_id: int = b.plan.id if b != null else -1
+	if b != null and not b.plan.windows.is_empty():
+		b.break_window(0, true)
+	G.world.drop_item(p.global_position + Vector3(0.5, 0, 0.5), Items.make("martelo"))
+	p.inv.add(Items.make("tabua", 7))
+	check("primeiro save existe", FileAccess.file_exists(dir + "/save.dat"))
+	check("segundo save cria copia de recuperacao", G.main.save_game(false) and FileAccess.file_exists(dir + "/save.bak"))
+	G.time_min += 30.0
+	G.main.save_game(false)
+	# 1) arquivo principal corrompido (gravacao interrompida no meio)
+	var f := FileAccess.open(dir + "/save.dat", FileAccess.WRITE)
+	f.store_buffer(PackedByteArray([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]))
+	f.close()
+	var d := Save.read("autotest")
+	check("save corrompido usa a copia de recuperacao", not d.is_empty() and d.get("_from_backup", false) and d.has("player"))
+	# 2) fechamento forcado entre remover o atual e renomear o temporario
+	var snap: Dictionary = G.main.snapshot()
+	Save._write_var(dir + "/save.tmp", snap)
+	DirAccess.remove_absolute(dir + "/save.dat")
+	DirAccess.remove_absolute(dir + "/save.bak")
+	d = Save.read("autotest")
+	check("recupera do arquivo temporario integro", not d.is_empty() and int(d["player"]["inv"]["items"].size()) > 0)
+	# 3) migracao de um save de versao anterior preservando propriedades
+	var old := {"v": 0, "name": "Antigo", "seed": 5, "time_min": 900.0, "sandbox": {"zombie_pop": 2.0}, "player": {"pos": Vector3(1, 0, 2)}}
+	var mg := Save.migrate(old)
+	check("migracao de versao", int(mg["v"]) == G.SAVE_VERSION and mg.has("env") and float(mg["sandbox"]["zombie_pop"]) == 2.0 and mg["sandbox"].has("day_minutes") and mg["player"]["pos"] == Vector3(1, 0, 2))
+	# 4) restaura um save valido e confere continuidade completa
+	check("regrava apos a recuperacao", G.main.save_game(false) and FileAccess.file_exists(dir + "/save.dat"))
+	var t_before := G.time_min
+	G.main.to_menu()
+	await get_tree().create_timer(0.5, true, false, true).timeout
+	G.main.load_game("autotest")
+	await _wait_game()
+	p = G.player
+	check("continuar preserva o tempo do mundo (sem avancar fora do jogo)", absf(G.time_min - t_before) < 1.0, "antes=%.1f depois=%.1f" % [t_before, G.time_min])
+	check("continuar preserva itens", p.inv.count("tabua") == 7)
+	if lot_id >= 0:
+		var b2: Building = G.world.buildings.get(lot_id, null)
+		check("janela quebrada continua quebrada", b2 != null and int(b2.win_state(0)["s"]) == Building.W_BROKEN)
+	var gi: Array = G.world.ground_items(p.global_position, 3.0)
+	check("item largado no chao persiste sem duplicar", gi.size() == 1, "itens=%d" % gi.size())
+	# 5) morte por infeccao: cadaver com equipamentos e reanimacao
+	var death_pos := p.global_position
+	p.sv.zinf = 0.6
+	p.hurt(999.0, "teste")
+	await wait(3.5)
+	var ck: Vector2i = G.world.key_of(death_pos)
+	var corpses: Array = G.world.cstate[ck].get("corpses", [])
+	var mine = null
+	for c in corpses:
+		if c.get("pl", false):
+			mine = c
+	check("morte deixa cadaver com os equipamentos", mine != null and mine["items"].size() >= 3 and float(mine["re"]) > 0.0, "itens=%d" % (mine["items"].size() if mine != null else 0))
+	var meta: Array = Save.list()
+	check("save marca o sobrevivente como morto", not meta.is_empty() and meta[0].get("dead", false))
+	# 6) novo sobrevivente no mesmo mundo
+	G.main.to_menu()
+	await get_tree().create_timer(0.5, true, false, true).timeout
+	G.main.menu.new_character_in("autotest")
+	G.main.menu._start()
+	await _wait_game()
+	p = G.player
+	check("novo sobrevivente vivo no mesmo mundo", not p.sv.dead and G.world_name == "Teste" and G.time_min >= t_before)
+	var st: Dictionary = G.world.cstate.get(ck, {})
+	var still := false
+	for c in st.get("corpses", []):
+		if c.get("pl", false):
+			still = true
+	check("cadaver anterior continua no mundo", still)
+	# 7) reanimacao do cadaver infectado
+	await tp(death_pos + Vector3(6, 0, 0), 0.0, -0.2)
+	G.time_min += 400.0
+	var n0: int = G.zombies.active_count()
+	G.zombies._check_reanimation()
+	await wait(0.5)
+	var gone := true
+	for c in G.world.cstate.get(ck, {}).get("corpses", []):
+		if c.get("pl", false):
+			gone = false
+	check("cadaver infectado se reanima como zumbi", gone and G.zombies.active_count() == n0 + 1, "ativos %d -> %d" % [n0, G.zombies.active_count()])
+	print("RESULTADO: %d falha(s)" % _fails)
+
+
+func scn_cerca() -> void:
+	await start()
+	var p: Player = G.player
+	p.god = true
+	await tp(Vector3(-1168.7, 0.1, -140.0), -PI * 0.5, -0.2)
+	p.rotation.y = -PI * 0.5
+	await wait(0.3)
+	var t: Dictionary = Interact.scan(p)
+	check("cerca detectada como obstaculo baixo", t.get("kind", "") == "obstaculo", str(t.get("kind", "nada")))
+	if t.get("kind", "") == "obstaculo":
+		var x0 := p.global_position.x
+		Interact.run(p, t, "pular_obst")
+		await wait(1.5)
+		check("pulou a cerca", p.global_position.x > -1168.0 and not p.vaulting, "x %.2f -> %.2f" % [x0, p.global_position.x])
 	print("RESULTADO: %d falha(s)" % _fails)

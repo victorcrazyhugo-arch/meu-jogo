@@ -10,10 +10,21 @@ static func scan(p: Node3D) -> Dictionary:
 	var out: Array = []
 	var pos: Vector3 = p.global_position
 	G.world.targets_near(pos, out)
-	if out.is_empty():
-		return {}
 	var fwd := -p.global_transform.basis.z
 	var camf := Vector3(-sin(p.yaw), 0, -cos(p.yaw))
+	# obstaculo baixo a frente (cerca, banco, caixote): pode ser transposto
+	var from: Vector3 = pos + Vector3(0, 0.5, 0)
+	var q := PhysicsRayQueryParameters3D.create(from, from + fwd * 1.15, G.L_GLASS)
+	var hit: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and absf(pos.y) < 0.6:
+		var col = hit["collider"]
+		var low: bool = col.has_meta("low") or (col.has_meta("struct") and Base.STRUCTS[col.get_meta("struct")["t"]].get("low", false))
+		var land: Vector3 = hit["position"] + fwd * 1.35
+		land.y = pos.y
+		if low and G.world.zone_at(land.x, land.z) != WorldGen.Z_RIVER and G.world.river_dist(land.x, land.z) > 0.6 and not G.world.cell_blocked(land.x, land.z):
+			out.append({"kind": "obstaculo", "pos": hit["position"], "name": "Obstáculo baixo", "label": "Pular", "land": land})
+	if out.is_empty():
+		return {}
 	var best := {}
 	var best_s := 1.0e9
 	for t in out:
@@ -228,6 +239,9 @@ static func actions(p: Node3D, t: Dictionary) -> Array:
 			if s2["t"] != "bolsa_acampamento" and s2["t"] != "gerador":
 				var tool2: bool = p.inv.has_tag("martelo") or p.inv.has_tag("pe_de_cabra") or not Base.STRUCTS[s2["t"]].has("tool") or Base.STRUCTS[s2["t"]].get("tool", "") == ""
 				a.append(_a("desmontar_s", "Desmontar", tool2, "Falta: martelo ou pé de cabra."))
+		"obstaculo":
+			var heavy: bool = p.sv.carry > p.sv.carry_max * 1.25
+			a.append(_a("pular_obst", "Pular", not heavy and p.sv.endurance > 0.08, "Carga pesada demais para pular." if heavy else "Sem fôlego."))
 		"canteiro":
 			var pl: Dictionary = t["pl"]
 			var stg := Base.plot_stage(pl)
@@ -445,6 +459,11 @@ static func run(p: Node3D, t: Dictionary, id: String) -> void:
 					p.start_action("Retirando combustível", 7.0, "work", f12)
 		"estrutura":
 			_run_struct(p, t, id)
+		"obstaculo":
+			var slow: float = 1.0 + sv.leg_penalty() + maxf(0.0, sv.carry / maxf(sv.carry_max, 0.1) - 0.8)
+			_move_arc(p, t["land"], 0.7 * slow, 0.85)
+			sv.spend(0.05)
+			Sfx.noise(p.global_position, 5.0)
 		"canteiro":
 			_run_plot(p, t, id)
 
