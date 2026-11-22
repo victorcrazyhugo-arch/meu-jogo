@@ -263,6 +263,14 @@ static func set_door(w: Node3D, s: Dictionary, open: bool) -> void:
 static func _mesh(type: String) -> MB:
 	var m := MB.new()
 	var wood := Color(0.55, 0.42, 0.28)
+	if type in ["parede_madeira", "porta_madeira", "cerca_madeira", "piso_madeira", "telhado_madeira", "escada_madeira", "caixote", "cama_simples", "bancada", "composteira", "secador"]:
+		m.mat_a = MB.M_WOOD
+	elif type == "parede_pedra":
+		m.mat_a = MB.M_STONE
+	elif type == "parede_metal":
+		m.mat_a = MB.M_CORR
+	elif type in ["saco_dormir", "barraca", "bolsa_acampamento"]:
+		m.mat_a = MB.M_FABRIC
 	match type:
 		"parede_madeira":
 			for i in 5:

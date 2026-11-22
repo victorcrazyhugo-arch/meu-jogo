@@ -7,13 +7,13 @@ Todas as horas são de 22 de novembro de 2026 (UTC). **As horas realizadas vêm 
 | | Horas |
 |---|---:|
 | Orçamento previsto no documento | 100 |
-| Trabalho efetivo realizado nesta sessão (linha principal) | ~2,2 |
+| Trabalho efetivo realizado nesta sessão (linha principal) | ~2,5 |
 | Trabalho paralelo de agentes auxiliares (áudio e veículos) | ~1,3 |
-| **Esforço total realizado** | **~3,5** |
-| Tempo corrido da sessão, do início à entrega | ~4,4 |
+| **Esforço total realizado** | **~3,8** |
+| Tempo corrido da sessão, do início à entrega da 0.1.2 | ~4,7 |
 | Tempo de espera sem trabalho (sessão interrompida entre ~14:20 e ~16:35) | ~2,2 |
 
-O ciclo de 100 horas **não** foi cumprido: foram gastas cerca de 3,5. A versão 0.1 é o que coube nesse esforço. As cerca de 96 horas restantes do orçamento continuam disponíveis para as pendências de `PENDENCIAS.md`.
+O ciclo de 100 horas **não** foi cumprido: foram gastas cerca de 3,8. A versão 0.1.2 é o que coube nesse esforço. As cerca de 96 horas restantes do orçamento continuam disponíveis para as pendências de `PENDENCIAS.md`.
 
 ## Linha do tempo
 
@@ -27,6 +27,7 @@ O ciclo de 100 horas **não** foi cumprido: foram gastas cerca de 3,5. A versão
 | 16:45–17:02 | Correção de cores e do HUD; primeiras capturas; pacote gráfico pedido (mobília detalhada, árvores, postes, decoração, praça, grama). |
 | 17:02–17:12 | Testes de jogo e de veículos; correções; exportação e entrega do APK 0.1.0. |
 | 17:12–17:25 | Otimização dos zumbis distantes, testes de salvamento e morte (um defeito corrigido), medições, documentação, APK 0.1.1. |
+| 17:25–17:45 | Pedido de gráficos e texturas melhores: materiais procedurais por superfície, relevo, vidro com reflexo, pele e cabelo, portas e janelas detalhadas, ajuste de cor e exposição; novas capturas; testes refeitos; APK 0.1.2. |
 
 ## Por etapa do cronograma do documento
 
@@ -42,7 +43,8 @@ O ciclo de 100 horas **não** foi cumprido: foram gastas cerca de 3,5. A versão
 | Integração e persistência | 8 | 0,3 | Salvar e continuar aprovados neste ambiente |
 | Desempenho, controles, colisões, falhas críticas | 10 | 0,3 | Medições de carga por cena; nada medido em celular |
 | Compilação, testes finais, prints, relatório | 4 | 0,4 | APK, 48 verificações, capturas e documentação |
-| **Total** | **100** | **~3,5** | Primeira versão jogável |
+| Melhoria gráfica pedida depois da entrega (materiais procedurais) | — | 0,3 | Versão 0.1.2 |
+| **Total** | **100** | **~3,8** | Primeira versão jogável |
 
 ## Revisão de viabilidade
 

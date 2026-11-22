@@ -119,15 +119,20 @@ func door_state(i: int) -> Dictionary:
 
 
 func _make_doors() -> void:
-	if _door_mesh == null:
-		_door_mesh = BoxMesh.new()
-		_door_mesh.size = Vector3(0.92, 2.06, 0.06)
 	var key := plan.c_door.to_html()
 	if not _door_mats.has(key):
-		var m := StandardMaterial3D.new()
-		m.albedo_color = plan.c_door
-		m.roughness = 0.85
-		_door_mats[key] = m
+		# folha com almofadas, rodape metalico e macaneta dos dois lados
+		var dm := MB.new()
+		var dc := MB.wm(plan.c_door, MB.M_WOOD)
+		dm.box(Vector3.ZERO, Vector3(0.92, 2.06, 0.05), dc)
+		for side in [-1.0, 1.0]:
+			for py in [0.56, -0.5]:
+				dm.box(Vector3(0, py, 0.028 * side), Vector3(0.66, 0.74 if py > 0.0 else 0.9, 0.012), dc.darkened(0.16))
+				dm.box(Vector3(0, py, 0.036 * side), Vector3(0.54, 0.6 if py > 0.0 else 0.76, 0.01), dc.lightened(0.06))
+			dm.box(Vector3(0, -0.96, 0.03 * side), Vector3(0.9, 0.12, 0.012), MB.wm(Color(0.5, 0.5, 0.52), MB.M_METAL))
+			dm.box(Vector3(0.36, 0.0, 0.045 * side), Vector3(0.05, 0.14, 0.03), MB.wm(Color(0.72, 0.68, 0.5), MB.M_METAL))
+			dm.box(Vector3(0.33, 0.0, 0.07 * side), Vector3(0.12, 0.03, 0.03), MB.wm(Color(0.72, 0.68, 0.5), MB.M_METAL))
+		_door_mats[key] = dm.to_mesh(Mats.world)
 	for i in plan.doors.size():
 		var d: Dictionary = plan.doors[i]
 		var piv := Node3D.new()
@@ -139,8 +144,7 @@ func _make_doors() -> void:
 			piv.rotation.y = -PI * 0.5
 		add_child(piv)
 		var mi := MeshInstance3D.new()
-		mi.mesh = _door_mesh
-		mi.material_override = _door_mats[key]
+		mi.mesh = _door_mats[key]
 		mi.position = Vector3(0.46, 1.06, 0)
 		mi.visibility_range_end = 70.0
 		piv.add_child(mi)
@@ -321,8 +325,19 @@ func refresh_dynamic() -> void:
 		elif s == W_OPEN:
 			var up := Vector3(0.96, 0.5, 0.03) if wn["h"] else Vector3(0.03, 0.5, 0.96)
 			g.box(c + Vector3(0, 0.34, 0), up, Color.WHITE, 4 | 8 if wn["h"] else 16 | 32)
-		# moldura
+		# moldura, peitoril e travessas
 		var fr := BPlan.WHITE
+		var fr2 := Color(0.80, 0.80, 0.77)
+		if wn["h"]:
+			e.box(c + Vector3(0, -0.615, 0), Vector3(1.10, 0.06, 0.34), fr2)
+			if s == W_CLOSED:
+				e.box(c, Vector3(0.035, 1.16, 0.045), fr)
+				e.box(c + Vector3(0, 0.05, 0), Vector3(0.96, 0.035, 0.045), fr)
+		else:
+			e.box(c + Vector3(0, -0.615, 0), Vector3(0.34, 0.06, 1.10), fr2)
+			if s == W_CLOSED:
+				e.box(c, Vector3(0.045, 1.16, 0.035), fr)
+				e.box(c + Vector3(0, 0.05, 0), Vector3(0.045, 0.035, 0.96), fr)
 		if wn["h"]:
 			e.box(c + Vector3(0, 0.6, 0), Vector3(1.0, 0.05, 0.24), fr)
 			e.box(c + Vector3(-0.48, 0, 0), Vector3(0.05, 1.2, 0.24), fr)

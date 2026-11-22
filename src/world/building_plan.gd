@@ -253,6 +253,9 @@ var c_roof := Color.WHITE
 var c_fab := Color.WHITE
 var c_door := Color.WHITE
 var c_fab2 := Color.WHITE
+var m_ext := 0.25            # tipo de superficie da fachada
+var m_int := 0.25            # paredes internas
+var m_floor := 0.45
 var decor: Array = []        # tapetes, quadros e luminarias (sem colisao)
 var colliders: Array = []    # [Transform3D, Vector3 tamanho]
 var solid_cells: Array = []  # por andar: PackedVector2Array de celulas locais solidas
@@ -394,6 +397,9 @@ func _palette() -> void:
 	c_roof = [Color(0.48, 0.22, 0.16), Color(0.26, 0.27, 0.30), Color(0.38, 0.30, 0.24), Color(0.22, 0.30, 0.26)][rng.randi() % 4]
 	if tdef["roof"] == "flat":
 		c_roof = Color(0.34, 0.35, 0.36)
+	m_ext = {"tijolo": MB.M_BRICK, "concreto": MB.M_CONCRETE, "metal": MB.M_CORR, "madeira": MB.M_SIDING}.get(mat, MB.M_PLASTER)
+	m_int = MB.M_SIDING if mat == "madeira" else MB.M_PAINT
+	m_floor = MB.M_FLOORWOOD if lay == "bsp" else (MB.M_CONCRETE if (mat == "metal" or type == "oficina" or type == "bombeiros") else MB.M_TILE)
 	c_fab = [Color(0.45, 0.25, 0.22), Color(0.25, 0.35, 0.5), Color(0.3, 0.45, 0.32), Color(0.55, 0.5, 0.4), Color(0.4, 0.3, 0.45), Color(0.6, 0.45, 0.25)][rng.randi() % 6]
 	c_fab2 = [Color(0.78, 0.62, 0.25), Color(0.7, 0.3, 0.25), Color(0.3, 0.5, 0.55), Color(0.85, 0.8, 0.68), Color(0.45, 0.55, 0.3), Color(0.55, 0.35, 0.5)][rng.randi() % 6]
 	c_door = [Color(0.40, 0.26, 0.16), Color(0.86, 0.86, 0.82), Color(0.30, 0.20, 0.14), Color(0.25, 0.35, 0.3), Color(0.5, 0.2, 0.16)][rng.randi() % 5]
@@ -1040,7 +1046,9 @@ func build_mesh() -> MB:
 	var trim := c_ext.darkened(0.25)
 	var ceil_c := Color(0.88, 0.88, 0.86)
 	# piso terreo
-	m.box(Vector3(w * 0.5, 0.03, d * 0.5), Vector3(w, 0.06, d), c_floor, 1 | 4 | 8 | 16 | 32)
+	m.box(Vector3(w * 0.5, 0.03, d * 0.5), Vector3(w, 0.06, d), MB.wm(c_floor, m_floor), 1 | 4 | 8 | 16 | 32)
+	trim = MB.wm(trim, m_ext)
+	ceil_c = MB.wm(ceil_c, MB.M_PLASTER)
 	for f in floors:
 		var y0 := f * FH
 		# lajes dos andares superiores, com abertura da escada
@@ -1049,7 +1057,7 @@ func build_mesh() -> MB:
 			for st in stairs:
 				if st["f"] == f - 1:
 					hx = st["col"]
-			var fc := c_floor
+			var fc := MB.wm(c_floor, m_floor)
 			if hx < 0:
 				_slab(m, 0, 0, w, d, y0, fc, ceil_c, trim)
 			else:
@@ -1087,7 +1095,7 @@ func build_mesh() -> MB:
 			for i in 10:
 				var t := (i + 0.5) / 10.0
 				var zc := (zb + 1.0 - t * 5.0) if up < 0 else (zb - 4.0 + t * 5.0)
-				m.box(Vector3(sx, y0 + (i + 1) * 0.3 - 0.15, zc), Vector3(0.98, 0.3, 0.5), c_floor.darkened(0.15 + 0.05 * (i % 2)))
+				m.box(Vector3(sx, y0 + (i + 1) * 0.3 - 0.15, zc), Vector3(0.98, 0.3, 0.5), MB.wm(c_floor.darkened(0.15 + 0.05 * (i % 2)), m_floor))
 			var ang := atan2(FH, 5.0)
 			var mid := Vector3(sx, y0 + FH * 0.5 - 0.08, zb - 1.5)
 			colliders.append([Transform3D(Basis(Vector3.RIGHT, ang if up < 0 else -ang), mid), Vector3(1.0, 0.16, sqrt(FH * FH + 25.0))])
@@ -1099,15 +1107,15 @@ func build_mesh() -> MB:
 		_door_details(m, f, y0)
 	# cobertura
 	var top := floors * FH
-	_slab(m, 0, 0, w, d, top, c_roof, ceil_c, trim)
+	_slab(m, 0, 0, w, d, top, MB.wm(c_roof, MB.M_CONCRETE), ceil_c, trim)
 	if tdef["roof"] == "gable":
 		var rh := minf(w, d) * 0.28
-		m.gable(-0.5, w + 0.5, -0.5, d + 0.5, top, rh, c_roof, c_ext, d > w)
+		m.gable(-0.5, w + 0.5, -0.5, d + 0.5, top, rh, MB.wm(c_roof, MB.M_ROOF), MB.wm(c_ext, m_ext), d > w)
 		# beiral e chamine
 		m.box(Vector3(w * 0.5, top + 0.04, d * 0.5), Vector3(w + 1.0, 0.08, d + 1.0), c_roof.darkened(0.25))
 		if tdef["lay"] == "bsp":
 			var chx := w * (0.28 if (id % 2 == 0) else 0.72)
-			m.box(Vector3(chx, top + rh * 0.5 + 0.5, d * 0.42), Vector3(0.7, rh + 1.0, 0.7), STONE)
+			m.box(Vector3(chx, top + rh * 0.5 + 0.5, d * 0.42), Vector3(0.7, rh + 1.0, 0.7), MB.wm(Color(0.56, 0.36, 0.28), MB.M_BRICK))
 			m.box(Vector3(chx, top + rh + 1.03, d * 0.42), Vector3(0.84, 0.08, 0.84), STONE.darkened(0.25))
 	else:
 		# equipamentos de cobertura
@@ -1115,9 +1123,9 @@ func build_mesh() -> MB:
 		for u in nun:
 			var ux := 2.0 + float(G.hash2(id, u, 71) % 1000) / 1000.0 * maxf(1.0, w - 4.0)
 			var uz := 2.0 + float(G.hash2(id, u, 72) % 1000) / 1000.0 * maxf(1.0, d - 4.0)
-			m.box(Vector3(ux, top + 0.45, uz), Vector3(1.4, 0.9, 1.0), METAL)
+			m.box(Vector3(ux, top + 0.45, uz), Vector3(1.4, 0.9, 1.0), MB.wm(METAL, MB.M_METAL))
 			m.box(Vector3(ux, top + 0.92, uz), Vector3(1.0, 0.06, 0.7), DARK)
-		var pc := c_ext.darkened(0.12)
+		var pc := MB.wm(c_ext.darkened(0.12), m_ext)
 		m.box(Vector3(w * 0.5, top + 0.25, 0.1), Vector3(w, 0.5, 0.2), pc)
 		m.box(Vector3(w * 0.5, top + 0.25, d - 0.1), Vector3(w, 0.5, 0.2), pc)
 		m.box(Vector3(0.1, top + 0.25, d * 0.5), Vector3(0.2, 0.5, d), pc)
@@ -1155,18 +1163,19 @@ func _slab(m: MB, x: int, z: int, sw: int, sd: int, y: float, top_c: Color, bot_
 
 ## cores por face de uma parede: [+Y, -Y, +Z, -Z, +X, -X]; faces externas usam a cor da fachada
 func _wall_cols(x: int, z: int, horiz: bool) -> Array:
-	var a := c_int
+	var a := MB.wm(c_int, m_int)
+	var e := MB.wm(c_ext, m_ext)
 	var cols := [a, a, a, a, a, a]
 	if horiz:
 		if z == 0:
-			cols[3] = c_ext
+			cols[3] = e
 		elif z == d - 1:
-			cols[2] = c_ext
+			cols[2] = e
 	else:
 		if x == 0:
-			cols[5] = c_ext
+			cols[5] = e
 		elif x == w - 1:
-			cols[4] = c_ext
+			cols[4] = e
 	return cols
 
 
@@ -1191,7 +1200,7 @@ func _walls(m: MB, f: int, y0: float) -> void:
 			_col(c, sz)
 			if f == 0 and (z == 0 or z == d - 1):
 				# rodape externo
-				m.box(Vector3(c.x, y0 + 0.2, c.z + (-0.115 if z == 0 else 0.115)), Vector3(sz.x, 0.4, 0.03), c_ext.darkened(0.32), 1 | 4 | 8)
+				m.box(Vector3(c.x, y0 + 0.2, c.z + (-0.115 if z == 0 else 0.115)), Vector3(sz.x, 0.4, 0.03), MB.wm(c_ext.darkened(0.32), MB.M_CONCRETE), 1 | 4 | 8)
 			x += 1
 	# trechos verticais (ao longo de Z)
 	for x2 in w:
@@ -1211,7 +1220,7 @@ func _walls(m: MB, f: int, y0: float) -> void:
 			m.box6(c2, sz2, _wall_cols(x2, za, false), 4 | 8 | 16 | 32)
 			_col(c2, sz2)
 			if f == 0 and (x2 == 0 or x2 == w - 1):
-				m.box(Vector3(c2.x + (-0.115 if x2 == 0 else 0.115), y0 + 0.2, c2.z), Vector3(0.03, 0.4, sz2.z), c_ext.darkened(0.32), 1 | 16 | 32)
+				m.box(Vector3(c2.x + (-0.115 if x2 == 0 else 0.115), y0 + 0.2, c2.z), Vector3(0.03, 0.4, sz2.z), MB.wm(c_ext.darkened(0.32), MB.M_CONCRETE), 1 | 16 | 32)
 			z2 += 1
 
 
@@ -1243,6 +1252,15 @@ func _parts(m: MB, t: Transform3D, rot: int, list: Array) -> void:
 			col = c_fab.lightened(0.16)
 		elif col == FAB2:
 			col = c_fab2
+		var raw: Color = b[6]
+		if raw == WOOD or raw == DWOOD or (raw.r > raw.g and raw.g > raw.b and raw.r - raw.b > 0.14 and raw.r < 0.72 and raw.g < 0.56):
+			col.a = MB.M_WOOD
+		elif raw == FAB or raw == FABL or raw == FAB2:
+			col.a = MB.M_FABRIC
+		elif raw == WHITE or raw == METAL or raw == CHROME:
+			col.a = MB.M_METAL
+		elif raw == STONE:
+			col.a = MB.M_STONE
 		var shape: String = b[7] if b.size() > 7 else ""
 		var ctr: Vector3 = t * Vector3(b[0], b[1], b[2])
 		var sx: float = b[5] if odd else b[3]
@@ -1277,7 +1295,7 @@ func build_interior() -> MB:
 				m.box(Vector3(dc["x"], y0 + 2.67, dc["z"]), Vector3(1.2, 0.03, 0.14), Color(0.96, 0.97, 0.92))
 			"tapete":
 				var cols := [c_fab2, c_fab.lightened(0.1), Color(0.55, 0.2, 0.18)]
-				var rc: Color = cols[int(dc["pat"]) % 3]
+				var rc: Color = MB.wm(cols[int(dc["pat"]) % 3], MB.M_FABRIC)
 				m.box(Vector3(dc["x"], y0 + 0.068, dc["z"]), Vector3(dc["sx"], 0.012, dc["sz"]), rc.darkened(0.3), 1 | 4 | 8 | 16 | 32)
 				m.box(Vector3(dc["x"], y0 + 0.076, dc["z"]), Vector3(float(dc["sx"]) - 0.3, 0.008, float(dc["sz"]) - 0.3), rc, 1)
 				m.box(Vector3(dc["x"], y0 + 0.081, dc["z"]), Vector3(float(dc["sx"]) - 0.9, 0.006, float(dc["sz"]) - 0.9), rc.lightened(0.25), 1)
@@ -1297,13 +1315,17 @@ func build_interior() -> MB:
 			var inn := 0.16
 			if wn["h"]:
 				var dz := inn if wn["z"] == 0 else -inn
+				m.mat_a = MB.M_FABRIC
 				m.box(Vector3(cx - 0.42, y1 + 1.52, cz2 + dz), Vector3(0.2, 1.36, 0.04), c_fab2)
 				m.box(Vector3(cx + 0.42, y1 + 1.52, cz2 + dz), Vector3(0.2, 1.36, 0.04), c_fab2)
+				m.mat_a = -1.0
 				m.box(Vector3(cx, y1 + 2.22, cz2 + dz), Vector3(1.16, 0.035, 0.035), DARK)
 			else:
 				var dx := inn if wn["x"] == 0 else -inn
+				m.mat_a = MB.M_FABRIC
 				m.box(Vector3(cx + dx, y1 + 1.52, cz2 - 0.42), Vector3(0.04, 1.36, 0.2), c_fab2)
 				m.box(Vector3(cx + dx, y1 + 1.52, cz2 + 0.42), Vector3(0.04, 1.36, 0.2), c_fab2)
+				m.mat_a = -1.0
 				m.box(Vector3(cx + dx, y1 + 2.22, cz2), Vector3(0.035, 0.035, 1.16), DARK)
 	return m
 
@@ -1334,9 +1356,9 @@ func _door_details(m: MB, f: int, y0: float) -> void:
 		var side := Vector3(out.z, 0, out.x)
 		var pc := Vector3(cx, 0, cz2) + out * 0.95
 		var along_x: bool = absf(out.z) > 0.5
-		m.box(pc + Vector3(0, 0.04, 0), Vector3(1.7, 0.08, 1.0) if along_x else Vector3(1.0, 0.08, 1.7), Color(0.6, 0.6, 0.58))
+		m.box(pc + Vector3(0, 0.04, 0), Vector3(1.7, 0.08, 1.0) if along_x else Vector3(1.0, 0.08, 1.7), MB.wm(Color(0.6, 0.6, 0.58), MB.M_CONCRETE))
 		if tdef["lay"] == "bsp":
 			var rc := Vector3(cx, 2.5, cz2) + out * 1.0
-			m.box(rc, Vector3(2.2, 0.09, 1.5) if along_x else Vector3(1.5, 0.09, 2.2), c_roof)
+			m.box(rc, Vector3(2.2, 0.09, 1.5) if along_x else Vector3(1.5, 0.09, 2.2), MB.wm(c_roof, MB.M_ROOF))
 			for sgn in [-1.0, 1.0]:
 				m.box(Vector3(cx, 1.25, cz2) + out * 1.62 + side * (0.98 * sgn), Vector3(0.1, 2.5, 0.1), trim)

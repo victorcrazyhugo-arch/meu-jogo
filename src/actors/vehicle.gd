@@ -168,6 +168,12 @@ var _hit_t := {}                 # id do zumbi -> instante (ms) ate o qual nao e
 # =====================================================================================
 #  ESTADO PERSISTENTE
 # =====================================================================================
+## Chaves do dicionario de estado (apenas tipos simples, gravavel com store_var):
+##   id, type, pos (Vector3), rot, col (indice em COLORS), q (qualidade do motor 0.8..1.15),
+##   fuel (litros), bat (carga 0..1), parts {peca: condicao 0..1 ou -1 ausente}, press {pneu: 0..1},
+##   key (chave na ignicao), locked, hot (ligacao direta), lights, trunk [itens], insp {pecas vistas},
+##   xp {controle diario de XP de mecanica}, t (minuto de jogo da ultima atualizacao).
+## Itens gerados: "chave_carro" ganha "car" (id) e "nm"; "pneu" removido ganha "psi"; "bateria_carro" ganha "chg".
 ## Cria o estado inicial deterministico de um carro do mundo.
 static func new_state(car_id: int, car_type: String, pos: Vector3, rot: float, seed_v: int) -> Dictionary:
 	var t := car_type if SPECS.has(car_type) else "sedan"
@@ -380,6 +386,7 @@ func _build() -> void:
 	_glass = MeshInstance3D.new()
 	_glass.mesh = aux["glass"]
 	_glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_glass.visibility_range_end = 130.0        # de longe sobra so a carroceria (menos chamadas de desenho)
 	body.add_child(_glass)
 	_glow = MeshInstance3D.new()
 	_glow.mesh = aux["glow"]
@@ -397,6 +404,7 @@ func _build() -> void:
 		var w := MeshInstance3D.new()
 		w.mesh = wm
 		w.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		w.visibility_range_end = 110.0
 		w.position = Vector3(-wx if i % 2 == 0 else wx, _wr, _ax_f if i < 2 else _ax_r)
 		add_child(w)
 		wheels.append(w)
@@ -1030,8 +1038,8 @@ func zombie_hit(z) -> void:
 	Sfx.noise(global_position, 10.0)
 	if driver != null and is_instance_valid(driver):
 		driver.trauma = minf(1.0, float(driver.trauma) + 0.2)
-		if part_cond("vidros") <= 0.0 and randf() < 0.5:
-			driver.hurt(randf_range(3.0, 7.0) * k, "Atacado por zumbis dentro do veículo")
+		if part_cond("vidros") <= 0.0 and randf() < 0.4:
+			driver.hurt(randf_range(2.0, 5.0) * k, "Atacado por zumbis dentro do veículo")
 
 
 func refuel(liters: float) -> float:

@@ -16,6 +16,7 @@ var fog := 0.0
 var cloud := 0.0
 var wind := 0.3
 var flash := 0.0
+var wetness := 0.0
 var _last_min := 0.0
 var _t := 0.0
 var draw_dist := 130.0
@@ -35,7 +36,7 @@ func _ready() -> void:
 	cn.fractal_octaves = 4
 	cn.seed = 77
 	var grad := Gradient.new()
-	grad.offsets = PackedFloat32Array([0.0, 0.52, 0.78, 1.0])
+	grad.offsets = PackedFloat32Array([0.0, 0.47, 0.72, 1.0])
 	grad.colors = PackedColorArray([Color(0, 0, 0, 1), Color(0, 0, 0, 1), Color(0.75, 0.75, 0.75, 1), Color(1, 1, 1, 1)])
 	var ct := NoiseTexture2D.new()
 	ct.width = 1024
@@ -54,7 +55,11 @@ func _ready() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_white = 1.4
+	env.tonemap_white = 1.9
+	env.adjustment_enabled = true
+	env.adjustment_contrast = 1.07
+	env.adjustment_saturation = 1.12
+	env.adjustment_brightness = 1.02
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
 	env.fog_depth_curve = 1.35
@@ -104,9 +109,14 @@ func apply_graphics() -> void:
 	sun.shadow_enabled = g >= 1
 	sun.directional_shadow_max_distance = [0.0, 48.0, 80.0][clampi(g, 0, 2)]
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS if g >= 2 else DirectionalLight3D.SHADOW_ORTHOGONAL
-	env.glow_enabled = g >= 2
-	env.glow_intensity = 0.35
-	env.glow_bloom = 0.05
+	env.glow_enabled = g >= 1
+	env.glow_intensity = 0.45
+	env.glow_bloom = 0.04
+	env.glow_hdr_threshold = 0.95
+	# relevo procedural desligado no perfil leve
+	Mats.init()
+	Mats.world.set_shader_parameter("bump", 0.0 if g == 0 else 1.0)
+	Mats.foliage.set_shader_parameter("bump", 0.0 if g == 0 else 1.0)
 	rain_fx.amount = [320, 600, 950][clampi(g, 0, 2)]
 	var vp := get_viewport()
 	if vp != null:
@@ -193,6 +203,9 @@ func _process(dt: float) -> void:
 	if weather == "tempestade" and rng.randf() < dt * 0.06:
 		flash = 1.0
 	flash = maxf(0.0, flash - dt * 2.5)
+	# o chao molha com a chuva e seca aos poucos
+	wetness = move_toward(wetness, 1.0 if rain > 0.2 else 0.0, dt * (0.08 if rain > 0.2 else 0.012) * maxf(1.0, G.time_mult))
+	Mats.world.set_shader_parameter("wet", wetness)
 	_update_sky(dt)
 	_update_fx(dt)
 
@@ -224,6 +237,8 @@ func _update_sky(_dt: float) -> void:
 		top = top.lerp(Color(0.8, 0.85, 1.0), flash * 0.7)
 		hor = hor.lerp(Color(0.9, 0.92, 1.0), flash * 0.7)
 	sky_mat.sky_top_color = top
+	Mats.glass.set_shader_parameter("sky_top", Vector3(top.r, top.g, top.b))
+	Mats.glass.set_shader_parameter("sky_hor", Vector3(hor.r, hor.g, hor.b))
 	sky_mat.sky_horizon_color = hor
 	sky_mat.ground_horizon_color = hor
 	sky_mat.ground_bottom_color = hor.darkened(0.3)

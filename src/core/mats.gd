@@ -6,8 +6,8 @@ static var world: ShaderMaterial
 static var foliage: ShaderMaterial
 static var flat: ShaderMaterial
 static var water: ShaderMaterial
-static var chara: StandardMaterial3D
-static var glass: StandardMaterial3D
+static var chara: ShaderMaterial
+static var glass: ShaderMaterial
 static var glow: StandardMaterial3D
 static var ghost_ok: StandardMaterial3D
 static var ghost_bad: StandardMaterial3D
@@ -41,10 +41,12 @@ static func init() -> void:
 	foliage.shader = sh
 	foliage.set_shader_parameter("noise_tex", noise)
 	foliage.set_shader_parameter("sway", 1.0)
+	foliage.set_shader_parameter("leafy", true)
 	flat = ShaderMaterial.new()
 	flat.shader = sh
 	flat.set_shader_parameter("noise_tex", noise)
 	flat.set_shader_parameter("detail", 0.35)
+	flat.set_shader_parameter("gloss", 0.65)
 	# grama: mesma logica, sem descarte de faces
 	var sh2 := Shader.new()
 	sh2.code = sh.code.replace("cull_back", "cull_disabled")
@@ -53,6 +55,8 @@ static func init() -> void:
 	grass.set_shader_parameter("noise_tex", noise)
 	grass.set_shader_parameter("sway", 2.2)
 	grass.set_shader_parameter("detail", 0.4)
+	grass.set_shader_parameter("leafy", true)
+	grass.set_shader_parameter("bump", 0.0)
 	# poca de luz dos postes (aditiva)
 	pool = StandardMaterial3D.new()
 	pool.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -64,16 +68,11 @@ static func init() -> void:
 	water = ShaderMaterial.new()
 	water.shader = load("res://src/shaders/water.gdshader")
 	water.set_shader_parameter("noise_tex", noise)
-	chara = StandardMaterial3D.new()
-	chara.vertex_color_use_as_albedo = true
-	chara.vertex_color_is_srgb = true
-	chara.roughness = 0.9
-	chara.metallic_specular = 0.15
-	glass = StandardMaterial3D.new()
-	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glass.albedo_color = Color(0.62, 0.78, 0.86, 0.28)
-	glass.roughness = 0.08
-	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+	chara = ShaderMaterial.new()
+	chara.shader = load("res://src/shaders/chara.gdshader")
+	chara.set_shader_parameter("noise_tex", noise)
+	glass = ShaderMaterial.new()
+	glass.shader = load("res://src/shaders/glass.gdshader")
 	glow = StandardMaterial3D.new()
 	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glow.vertex_color_use_as_albedo = true

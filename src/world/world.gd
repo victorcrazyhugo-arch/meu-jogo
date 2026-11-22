@@ -208,9 +208,9 @@ func _make_tree_meshes() -> void:
 		var h := 0.3 + 0.07 * ((i * 5) % 4)
 		var p1 := p0 + d * 0.07 + Vector3(0, h * 0.6, 0)
 		var p2 := p0 + d * 0.2 + Vector3(0, h, 0)
-		var c0 := Color(0.15, 0.28, 0.11, 0.0)
-		var c1 := Color(0.25, 0.42, 0.16, 0.5)
-		var c2 := Color(0.42, 0.56, 0.22, 1.0)
+		var c0 := Color(0.10, 0.19, 0.08, 0.0)
+		var c1 := Color(0.17, 0.30, 0.12, 0.5)
+		var c2 := Color(0.30, 0.42, 0.17, 1.0)
 		var base := gm.v.size()
 		for e in [[p0 - side, c0], [p0 + side, c0], [p1 - side * 0.7, c1], [p1 + side * 0.7, c1], [p2, c2]]:
 			gm.v.append(e[0])
@@ -425,9 +425,10 @@ func _update_lamps(pp: Vector3) -> void:
 # =====================================================================================
 #  GERACAO EM THREAD (somente dados)
 # =====================================================================================
-func _flat(m: MB, r: Rect2, y: float, col: Color) -> void:
+func _flat(m: MB, r: Rect2, y: float, col: Color, mat: float = 1.0) -> void:
 	if r.size.x <= 0.0 or r.size.y <= 0.0:
 		return
+	col.a = mat
 	m.quad(Vector3(r.position.x, y, r.position.y), Vector3(r.end.x, y, r.position.y), Vector3(r.end.x, y, r.end.y), Vector3(r.position.x, y, r.end.y), Vector3.UP, col)
 
 
@@ -444,7 +445,7 @@ func _zone_col(x: float, z: float) -> Color:
 			c = Color(0.36, 0.43, 0.27)
 		WorldGen.Z_RIVER:
 			c = Color(0.24, 0.28, 0.22)
-	return Color(c.r + n, c.g + n, c.b + n * 0.5)
+	return Color(c.r + n, c.g + n, c.b + n * 0.5, MB.M_GRASS)
 
 
 func _other_road(i: int, x: float, z: float, list: Array) -> bool:
@@ -489,16 +490,21 @@ func _gen_chunk(k: Vector2i, gone: Dictionary) -> void:
 			lc = Color(0.34, 0.50, 0.26)
 		elif tp != "casa":
 			lc = Color(0.47, 0.47, 0.45) if WorldGen.TYPES[tp]["mat"] != "metal" else Color(0.40, 0.40, 0.40)
-		_flat(m, lr, 0.015, lc)
+		var lmat := MB.M_GRASS
+		if lot["city"] == 0:
+			lmat = MB.M_DIRT
+		elif tp != "casa" and tp != "praca":
+			lmat = MB.M_CONCRETE
+		_flat(m, lr, 0.015, lc, lmat)
 		if tp == "praca":
 			var lt: Rect2i = lot["lot"]
-			_flat(m, Rect2(lt.position.x, lt.position.y + lt.size.y * 0.5 - 1.5, lt.size.x, 3.0).intersection(crect), 0.03, Color(0.62, 0.58, 0.48))
-			_flat(m, Rect2(lt.position.x + lt.size.x * 0.5 - 1.5, lt.position.y, 3.0, lt.size.y).intersection(crect), 0.03, Color(0.62, 0.58, 0.48))
+			_flat(m, Rect2(lt.position.x, lt.position.y + lt.size.y * 0.5 - 1.5, lt.size.x, 3.0).intersection(crect), 0.03, Color(0.62, 0.58, 0.48), MB.M_CONCRETE)
+			_flat(m, Rect2(lt.position.x + lt.size.x * 0.5 - 1.5, lt.position.y, 3.0, lt.size.y).intersection(crect), 0.03, Color(0.62, 0.58, 0.48), MB.M_CONCRETE)
 	# ---- plantacoes
 	for fi in gen.chunk_fields.get(k, []):
 		var fd: Dictionary = gen.fields[fi]
 		var fr: Rect2 = fd["r"]
-		_flat(m, fr.intersection(crect), 0.02, Color(0.36, 0.27, 0.18))
+		_flat(m, fr.intersection(crect), 0.02, Color(0.36, 0.27, 0.18), MB.M_SOIL)
 		var cc := Color(0.30, 0.50, 0.20)
 		var chh := 0.3
 		match fd["crop"]:
@@ -519,7 +525,7 @@ func _gen_chunk(k: Vector2i, gone: Dictionary) -> void:
 				var xa := maxf(fr.position.x + 1.0, x0)
 				var xb := minf(fr.end.x - 1.0, x0 + CH)
 				if xb > xa:
-					m.box(Vector3((xa + xb) * 0.5, chh * 0.5 + 0.02, rz), Vector3(xb - xa, chh, 0.45), cc, 1 | 4 | 8 | 16 | 32)
+					m.box(Vector3((xa + xb) * 0.5, chh * 0.5 + 0.02, rz), Vector3(xb - xa, chh, 0.45), MB.wm(cc, MB.M_GRASS), 1 | 4 | 8 | 16 | 32)
 			rz += 1.6
 	# ---- estradas
 	var rlist: Array = gen.chunk_roads.get(k, [])
@@ -531,9 +537,9 @@ func _gen_chunk(k: Vector2i, gone: Dictionary) -> void:
 			continue
 		var kind: int = rd["kind"]
 		if kind == 2:
-			_flat(m, cr, 0.03, Color(0.44, 0.36, 0.25))
+			_flat(m, cr, 0.03, Color(0.44, 0.36, 0.25), MB.M_DIRT)
 			continue
-		_flat(m, cr, 0.04, Color(0.21, 0.21, 0.22))
+		_flat(m, cr, 0.04, Color(0.23, 0.23, 0.24), MB.M_ASPHALT)
 		var hz: bool = rd["horiz"]
 		# calcadas (ruas) em trechos de 2 m, omitidas nos cruzamentos
 		if kind == 0:
@@ -552,9 +558,9 @@ func _gen_chunk(k: Vector2i, gone: Dictionary) -> void:
 					if not ok and run_s > -1.0e8:
 						var e := minf(q, a1)
 						if hz:
-							_flat(m, Rect2(run_s, (rr.position.y if side == 0 else rr.end.y - 2.0), e - run_s, 2.0), 0.09, Color(0.56, 0.56, 0.54))
+							_flat(m, Rect2(run_s, (rr.position.y if side == 0 else rr.end.y - 2.0), e - run_s, 2.0), 0.09, Color(0.56, 0.56, 0.54), MB.M_CONCRETE)
 						else:
-							_flat(m, Rect2((rr.position.x if side == 0 else rr.end.x - 2.0), run_s, 2.0, e - run_s), 0.09, Color(0.56, 0.56, 0.54))
+							_flat(m, Rect2((rr.position.x if side == 0 else rr.end.x - 2.0), run_s, 2.0, e - run_s), 0.09, Color(0.56, 0.56, 0.54), MB.M_CONCRETE)
 						run_s = -1.0e9
 					q += 2.0
 		# faixas de pedestre junto aos cruzamentos
@@ -647,7 +653,7 @@ func _gen_chunk(k: Vector2i, gone: Dictionary) -> void:
 					var lt3: Rect2i = lot2["lot"]
 					var pz0 := dw.z if lot2["face"] == 0 else float(lt3.position.y)
 					var pz1 := float(lt3.end.y) if lot2["face"] == 0 else dw.z
-					_flat(m, Rect2(dw.x - 0.65, pz0, 1.3, pz1 - pz0), 0.035, Color(0.62, 0.6, 0.55))
+					_flat(m, Rect2(dw.x - 0.65, pz0, 1.3, pz1 - pz0), 0.035, Color(0.62, 0.6, 0.55), MB.M_CONCRETE)
 					var mz := (float(lt3.end.y) - 0.7) if lot2["face"] == 0 else (float(lt3.position.y) + 0.7)
 					m.box(Vector3(dw.x + 1.3, 0.5, mz), Vector3(0.07, 1.0, 0.07), Color(0.3, 0.24, 0.18))
 					m.box(Vector3(dw.x + 1.3, 1.08, mz), Vector3(0.22, 0.2, 0.4), [Color(0.7, 0.2, 0.18), Color(0.2, 0.3, 0.5), Color(0.85, 0.85, 0.8), Color(0.2, 0.2, 0.22)][lid % 4])
@@ -656,6 +662,7 @@ func _gen_chunk(k: Vector2i, gone: Dictionary) -> void:
 	for ci in gen.chunk_camps.get(k, []):
 		var cp: Vector2 = gen.camps[ci]["p"]
 		var tc: Color = [Color(0.3, 0.42, 0.3), Color(0.55, 0.4, 0.2), Color(0.25, 0.35, 0.5)][ci % 3]
+		tc.a = MB.M_FABRIC
 		m.gable(cp.x - 1.3, cp.x + 1.3, cp.y - 1.6, cp.y + 1.6, 0.0, 1.5, tc, tc.darkened(0.3), true)
 		wcols.append([Transform3D(Basis.IDENTITY, Vector3(cp.x, 0.7, cp.y)), Vector3(2.2, 1.4, 3.0)])
 		for s in 7:
@@ -670,7 +677,7 @@ func _gen_chunk(k: Vector2i, gone: Dictionary) -> void:
 		var L: Vector3 = gen.lamps[li]
 		var lb := Basis(Vector3.UP, L.z)
 		var fw: Vector3 = lb * Vector3(0, 0, -1)
-		var pole := Color(0.2, 0.22, 0.24)
+		var pole := Color(0.2, 0.22, 0.24, MB.M_METAL)
 		m.box(Vector3(L.x, 0.25, L.y), Vector3(0.32, 0.5, 0.32), pole.darkened(0.2))
 		m.tube(L.x, L.y, 0.5, 5.5, Vector2(0.075, 0.075), Vector2(0.05, 0.05), pole, 7, false, true)
 		m.box_t(Transform3D(lb, Vector3(L.x, 5.48, L.y) + fw * 0.72), Vector3(0.07, 0.07, 1.5), pole)
@@ -713,7 +720,7 @@ func _gen_chunk(k: Vector2i, gone: Dictionary) -> void:
 			continue
 		var pr: Rect2i = plot["lot"]
 		var pc := Vector3(pr.position.x + pr.size.x * 0.5, 0, pr.position.y + pr.size.y * 0.5)
-		var stone := Color(0.6, 0.6, 0.58)
+		var stone := Color(0.6, 0.6, 0.58, MB.M_STONE)
 		m.tube(pc.x, pc.z, 0.0, 0.55, Vector2(2.4, 2.4), Vector2(2.3, 2.3), stone, 14, false, false)
 		m.tube(pc.x, pc.z, 0.55, 0.56, Vector2(2.3, 2.3), Vector2(2.0, 2.0), stone.lightened(0.1), 14, false, false)
 		m.tube(pc.x, pc.z, 0.3, 0.31, Vector2(2.0, 2.0), Vector2(2.0, 2.0), Color(0.24, 0.4, 0.44), 14, false, true)
@@ -727,7 +734,7 @@ func _gen_chunk(k: Vector2i, gone: Dictionary) -> void:
 			var ba := PI * 0.5 * bi + PI * 0.25
 			var bp := pc + Vector3(cos(ba), 0, sin(ba)) * 7.0
 			var bb := Basis(Vector3.UP, -ba + PI * 0.5)
-			var wd := Color(0.45, 0.32, 0.2)
+			var wd := Color(0.45, 0.32, 0.2, MB.M_WOOD)
 			m.box_t(Transform3D(bb, bp + Vector3(0, 0.45, 0)), Vector3(1.7, 0.07, 0.45), wd)
 			m.box_t(Transform3D(bb, bp + Vector3(0, 0.75, 0) + bb * Vector3(0, 0, 0.22)), Vector3(1.7, 0.4, 0.06), wd)
 			m.box_t(Transform3D(bb, bp + Vector3(0, 0.22, 0) + bb * Vector3(-0.7, 0, 0)), Vector3(0.07, 0.44, 0.4), Color(0.2, 0.2, 0.22))
@@ -789,6 +796,7 @@ func _fence(m: MB, gcols: Array, nav: PackedVector2Array, a: Vector2, b: Vector2
 	var mid := (a + b) * 0.5
 	var along_x := absf(b.x - a.x) > absf(b.y - a.y)
 	var sz := Vector3(len, 0.09, 0.05) if along_x else Vector3(0.05, 0.09, len)
+	wood.a = MB.M_WOOD
 	m.box(Vector3(mid.x, 0.45, mid.y), sz, wood)
 	m.box(Vector3(mid.x, 0.85, mid.y), sz, wood)
 	var n := int(len / 2.0)

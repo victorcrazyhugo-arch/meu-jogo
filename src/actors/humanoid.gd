@@ -128,6 +128,7 @@ static func _soil(col: Color, dirt: float, blood: float, k: float) -> Color:
 static func build_arrays(L: Dictionary) -> MB:
 	var m := MB.new()
 	m.use_bones = true
+	m.use_uv = true
 	var rs := RandomNumberGenerator.new()
 	rs.seed = int(L.get("seed", 1))
 	var is_z: bool = L.get("zombie", false)
@@ -135,6 +136,9 @@ static func build_arrays(L: Dictionary) -> MB:
 	if is_z:
 		skin = skin.lerp(Color(0.50, 0.57, 0.46), 0.62)
 	var hairc: Color = L.get("hair", Color(0.2, 0.14, 0.1))
+	# o alfa informa o tipo de superficie ao shader dos personagens
+	skin.a = 0.2
+	hairc.a = 0.4
 	var bw: float = L.get("build", 1.0)
 	var fem: bool = L.get("female", false)
 	var dirt: float = L.get("dirt", 0.0)
@@ -195,15 +199,15 @@ static func build_arrays(L: Dictionary) -> MB:
 	elif bot.get("tight", false):
 		lbulk = -0.004
 	m.bone = B_HIPS
-	m.tube(0, 0, 0.86, 1.04, Vector2(hp, dp) + Vector2(0.006, 0.006), Vector2(hp, dp), legc if (bs == 1 or bs == 2) else Color(0.28, 0.28, 0.32), 10, true, false)
+	m.tube(0, 0, 0.86, 1.04, Vector2(hp, dp) + Vector2(0.006, 0.006), Vector2(hp, dp), legc if (bs == 1 or bs == 2) else Color(0.28, 0.28, 0.32), 14, true, false)
 	if bs == 3:
 		var sk_y: float = bot.get("len", 0.5)
 		var flare := 0.04 + (0.98 - sk_y) * 0.12
-		m.tube(0, 0, sk_y, 0.99, Vector2(hp + flare, dp + flare), Vector2(hp + 0.012, dp + 0.012), bc, 10, true, false, 5 if bot.get("pat", 0) in [1, 3] else 1, bc2)
+		m.tube(0, 0, sk_y, 0.99, Vector2(hp + flare, dp + flare), Vector2(hp + 0.012, dp + 0.012), bc, 14, true, false, 5 if bot.get("pat", 0) in [1, 3] else 1, bc2)
 		if bot.get("pat", 0) == 2:
-			m.tube(0, 0, sk_y, sk_y + 0.05, Vector2(hp + flare + 0.004, dp + flare + 0.004), Vector2(hp + flare - 0.002, dp + flare - 0.002), bc2, 10, false, false)
+			m.tube(0, 0, sk_y, sk_y + 0.05, Vector2(hp + flare + 0.004, dp + flare + 0.004), Vector2(hp + flare - 0.002, dp + flare - 0.002), bc2, 14, false, false)
 	if L.has("belt"):
-		m.tube(0, 0, 1.00, 1.045, Vector2(hp + 0.012, dp + 0.012), Vector2(hp + 0.012, dp + 0.012), L["belt"], 10, false, false)
+		m.tube(0, 0, 1.00, 1.045, Vector2(hp + 0.012, dp + 0.012), Vector2(hp + 0.012, dp + 0.012), L["belt"], 14, false, false)
 		m.box(Vector3(0, 1.022, -(dp + 0.016)), Vector3(0.04, 0.04, 0.012), Color(0.7, 0.66, 0.5))
 	for side in 2:
 		var sx := -0.095 if side == 0 else 0.095
@@ -218,12 +222,12 @@ static func build_arrays(L: Dictionary) -> MB:
 			shin = skin
 		m.bone = B_LEG_L if side == 0 else B_LEG_R
 		var tr := 0.083 * (0.92 + (bw - 1.0) * 1.2) + lbulk
-		m.tube(sx, 0, 0.47, 0.93, Vector2(0.060 + lbulk, 0.062 + lbulk), Vector2(tr, tr + 0.004), thigh, 8, false, true)
+		m.tube(sx, 0, 0.47, 0.93, Vector2(0.060 + lbulk, 0.062 + lbulk), Vector2(tr, tr + 0.004), thigh, 12, false, true)
 		if bs == 2:
 			var sy: float = bot.get("len", 0.66)
-			m.tube(sx, 0, sy, 0.93, Vector2(tr + 0.004, tr + 0.008), Vector2(tr + 0.006, tr + 0.01), bc, 8, true, false)
+			m.tube(sx, 0, sy, 0.93, Vector2(tr + 0.004, tr + 0.008), Vector2(tr + 0.006, tr + 0.01), bc, 12, true, false)
 			if bot.get("pat", 0) == 2:
-				m.tube(sx, 0, sy, sy + 0.04, Vector2(tr + 0.007, tr + 0.011), Vector2(tr + 0.007, tr + 0.011), bc2, 8, false, false)
+				m.tube(sx, 0, sy, sy + 0.04, Vector2(tr + 0.007, tr + 0.011), Vector2(tr + 0.007, tr + 0.011), bc2, 12, false, false)
 			if bot.get("pat", 0) == 1:
 				m.box(Vector3(sx + osx * (tr + 0.006), (sy + 0.93) * 0.5, 0), Vector3(0.012, 0.93 - sy, 0.03), bc2)
 		if bs == 1 and bot.get("pat", 0) == 1:
@@ -231,13 +235,13 @@ static func build_arrays(L: Dictionary) -> MB:
 		if bot.get("cargo", false) and bs >= 1:
 			m.box(Vector3(sx + osx * (tr + 0.004), 0.68, 0.0), Vector3(0.03, 0.12, 0.10), bc.darkened(0.14))
 		m.bone = B_SHIN_L if side == 0 else B_SHIN_R
-		m.ellipsoid(Vector3(sx, 0.47, -0.004), Vector3(0.060 + lbulk, 0.058, 0.064 + lbulk), legc if bs == 1 else skin, 8, 4)
-		m.tube(sx, 0, 0.09, 0.47, Vector2(0.043 + lbulk, 0.046 + lbulk), Vector2(0.058 + lbulk, 0.060 + lbulk), shin, 8, false, false)
+		m.ellipsoid(Vector3(sx, 0.47, -0.004), Vector3(0.060 + lbulk, 0.058, 0.064 + lbulk), legc if bs == 1 else skin, 12, 6)
+		m.tube(sx, 0, 0.09, 0.47, Vector2(0.043 + lbulk, 0.046 + lbulk), Vector2(0.058 + lbulk, 0.060 + lbulk), shin, 12, false, false)
 		if bs == 1:
 			if bot.get("pat", 0) == 1:
 				m.box(Vector3(sx + osx * 0.052, 0.28, 0), Vector3(0.012, 0.38, 0.03), bc2)
 			elif bot.get("pat", 0) == 2:
-				m.tube(sx, 0, 0.09, 0.16, Vector2(0.048 + lbulk, 0.051 + lbulk), Vector2(0.05 + lbulk, 0.053 + lbulk), bc2, 8, false, false)
+				m.tube(sx, 0, 0.09, 0.16, Vector2(0.048 + lbulk, 0.051 + lbulk), Vector2(0.05 + lbulk, 0.053 + lbulk), bc2, 12, false, false)
 			if bot.get("knee", false):
 				m.box(Vector3(sx, 0.46, -0.058), Vector3(0.08, 0.1, 0.03), bc.darkened(0.3))
 		var sst: int = shoes.get("style", 0)
@@ -259,7 +263,7 @@ static func build_arrays(L: Dictionary) -> MB:
 				m.box(Vector3(sx, 0.012, -0.05), Vector3(0.104, 0.026, 0.27), sole)
 			if sst == 2:
 				var shaft := 0.40 if shoes.get("tall", false) else 0.28
-				m.tube(sx, 0, 0.09, shaft, Vector2(0.052, 0.055), Vector2(0.058 + lbulk, 0.060 + lbulk), sc, 8, false, true)
+				m.tube(sx, 0, 0.09, shaft, Vector2(0.052, 0.055), Vector2(0.058 + lbulk, 0.060 + lbulk), sc, 12, false, true)
 
 	# ---------------- tronco
 	m.bone = B_SPINE
@@ -289,29 +293,29 @@ static func build_arrays(L: Dictionary) -> MB:
 			bands = 7
 			checker = true
 	if split:
-		m.tube(0, 0, 1.03, 1.30, wst, chs, body_c, 10, false, false)
-		m.tube(0, 0, 1.30, 1.485, chs, shd, body_c2, 10, false, true)
+		m.tube(0, 0, 1.03, 1.30, wst, chs, body_c, 14, false, false)
+		m.tube(0, 0, 1.30, 1.485, chs, shd, body_c2, 14, false, true)
 	else:
-		m.tube(0, 0, 1.03, 1.30, wst, chs, body_c, 10, false, false, bands, body_c2, checker)
-		m.tube(0, 0, 1.30, 1.485, chs, shd, body_c if bands % 2 == 1 else body_c2, 10, false, true, 1 if not checker else 4, body_c2 if bands % 2 == 1 else body_c, checker)
+		m.tube(0, 0, 1.03, 1.30, wst, chs, body_c, 14, false, false, bands, body_c2, checker)
+		m.tube(0, 0, 1.30, 1.485, chs, shd, body_c if bands % 2 == 1 else body_c2, 14, false, true, 1 if not checker else 4, body_c2 if bands % 2 == 1 else body_c, checker)
 	var front := -(dp + bulk + 0.006)
 	if os == 0 and has_top:
 		if tpat == 4:
 			m.box(Vector3(0, 1.30, front - 0.004), Vector3(0.13, 0.12, 0.008), tc2)
 		elif tpat == 5:
-			m.tube(0, 0, 1.27, 1.33, chs + Vector2(0.004, 0.004), chs + Vector2(0.004, 0.004), tc2, 10, false, false)
+			m.tube(0, 0, 1.27, 1.33, chs + Vector2(0.004, 0.004), chs + Vector2(0.004, 0.004), tc2, 14, false, false)
 		elif tpat == 6:
-			m.tube(0, 0, 1.12, 1.15, wst.lerp(chs, 0.35) + Vector2(0.004, 0.004), wst.lerp(chs, 0.45) + Vector2(0.004, 0.004), refl, 10, false, false)
-			m.tube(0, 0, 1.33, 1.36, chs + Vector2(0.003, 0.003), chs + Vector2(0.001, 0.001), refl, 10, false, false)
+			m.tube(0, 0, 1.12, 1.15, wst.lerp(chs, 0.35) + Vector2(0.004, 0.004), wst.lerp(chs, 0.45) + Vector2(0.004, 0.004), refl, 14, false, false)
+			m.tube(0, 0, 1.33, 1.36, chs + Vector2(0.003, 0.003), chs + Vector2(0.001, 0.001), refl, 14, false, false)
 		if sl == 0:
-			m.ellipsoid(Vector3(-sh * 0.86, 1.455, 0), Vector3(0.06, 0.045, 0.07), skin, 6, 3)
-			m.ellipsoid(Vector3(sh * 0.86, 1.455, 0), Vector3(0.06, 0.045, 0.07), skin, 6, 3)
+			m.ellipsoid(Vector3(-sh * 0.86, 1.455, 0), Vector3(0.06, 0.045, 0.07), skin, 10, 5)
+			m.ellipsoid(Vector3(sh * 0.86, 1.455, 0), Vector3(0.06, 0.045, 0.07), skin, 10, 5)
 		if top.get("buttons", false):
 			m.box(Vector3(0, 1.27, front), Vector3(0.022, 0.40, 0.008), tc.lightened(0.25) if tc.get_luminance() < 0.6 else tc.darkened(0.2))
 		if top.get("collar", false):
-			m.tube(0, 0, 1.47, 1.512, Vector2(0.07, 0.07), Vector2(0.084, 0.084), tc.lightened(0.14) if tc.get_luminance() < 0.6 else tc.darkened(0.12), 8, false, false)
+			m.tube(0, 0, 1.47, 1.512, Vector2(0.07, 0.07), Vector2(0.084, 0.084), tc.lightened(0.14) if tc.get_luminance() < 0.6 else tc.darkened(0.12), 12, false, false)
 		if top.get("turtle", false):
-			m.tube(0, 0, 1.47, 1.565, Vector2(0.06, 0.062), Vector2(0.056, 0.058), tc, 8, false, false)
+			m.tube(0, 0, 1.47, 1.565, Vector2(0.06, 0.062), Vector2(0.056, 0.058), tc, 12, false, false)
 		if top.get("vneck", false):
 			m.box(Vector3(0, 1.44, front + 0.002), Vector3(0.06, 0.07, 0.008), skin)
 		if top.get("badge", false):
@@ -321,17 +325,17 @@ static func build_arrays(L: Dictionary) -> MB:
 			m.box(Vector3(0, 1.27, front), Vector3(0.065, 0.42, 0.012), tc if has_top else skin)
 		else:
 			m.box(Vector3(0, 1.27, front), Vector3(0.012, 0.42, 0.008), oc.darkened(0.3))
-		m.tube(0, 0, 1.47, 1.515, Vector2(0.075, 0.075), Vector2(0.088, 0.088), oc.darkened(0.15), 8, false, false)
+		m.tube(0, 0, 1.47, 1.515, Vector2(0.075, 0.075), Vector2(0.088, 0.088), oc.darkened(0.15), 12, false, false)
 		if over.get("hood", false):
-			m.ellipsoid(Vector3(0, 1.50, 0.105), Vector3(0.115, 0.095, 0.075), oc, 6, 4)
+			m.ellipsoid(Vector3(0, 1.50, 0.105), Vector3(0.115, 0.095, 0.075), oc, 10, 5)
 		if over.get("long", false):
-			m.tube(0, 0, 0.66, 1.04, Vector2(hp + 0.055, dp + 0.055), Vector2(hp + 0.02 + bulk, dp + 0.02 + bulk), oc, 10, false, false)
+			m.tube(0, 0, 0.66, 1.04, Vector2(hp + 0.055, dp + 0.055), Vector2(hp + 0.02 + bulk, dp + 0.02 + bulk), oc, 14, false, false)
 		if over.get("pockets", false):
 			m.box(Vector3(-0.085, 1.36, front - 0.002), Vector3(0.075, 0.07, 0.014), oc.darkened(0.16))
 			m.box(Vector3(0.085, 1.36, front - 0.002), Vector3(0.075, 0.07, 0.014), oc.darkened(0.16))
 		if opat == 2:
-			m.tube(0, 0, 1.12, 1.15, wst.lerp(chs, 0.35) + Vector2(0.004, 0.004), wst.lerp(chs, 0.45) + Vector2(0.004, 0.004), refl, 10, false, false)
-			m.tube(0, 0, 1.33, 1.36, chs + Vector2(0.003, 0.003), chs + Vector2(0.001, 0.001), refl, 10, false, false)
+			m.tube(0, 0, 1.12, 1.15, wst.lerp(chs, 0.35) + Vector2(0.004, 0.004), wst.lerp(chs, 0.45) + Vector2(0.004, 0.004), refl, 14, false, false)
+			m.tube(0, 0, 1.33, 1.36, chs + Vector2(0.003, 0.003), chs + Vector2(0.001, 0.001), refl, 14, false, false)
 	elif os == 3:
 		m.box(Vector3(0, 1.27, front), Vector3(0.05, 0.40, 0.01), tc if has_top else skin)
 		if over.get("plate", false):
@@ -341,7 +345,7 @@ static func build_arrays(L: Dictionary) -> MB:
 			m.box(Vector3(-0.085, 1.15, front - 0.014), Vector3(0.09, 0.09, 0.03), oc.darkened(0.2))
 			m.box(Vector3(0.085, 1.15, front - 0.014), Vector3(0.09, 0.09, 0.03), oc.darkened(0.2))
 		if opat == 2 or over.get("pname", "") == "faixas refletivas":
-			m.tube(0, 0, 1.20, 1.23, wst.lerp(chs, 0.6) + Vector2(0.004, 0.004), wst.lerp(chs, 0.7) + Vector2(0.004, 0.004), refl, 10, false, false)
+			m.tube(0, 0, 1.20, 1.23, wst.lerp(chs, 0.6) + Vector2(0.004, 0.004), wst.lerp(chs, 0.7) + Vector2(0.004, 0.004), refl, 14, false, false)
 	# mochilas e bolsas
 	var bgs: int = bag.get("style", 0)
 	if bgs > 0:
@@ -354,7 +358,7 @@ static func build_arrays(L: Dictionary) -> MB:
 			m.box_t(Transform3D(Basis(Vector3.BACK, 0.62), Vector3(0.0, 1.27, back + 0.012)), Vector3(0.035, 0.62, 0.012), bgc.darkened(0.3))
 		elif bgs == 4:
 			m.box(Vector3(0.03, 1.0, front - 0.04), Vector3(0.17, 0.085, 0.07), bgc)
-			m.tube(0, 0, 0.99, 1.02, Vector2(hp + 0.016, dp + 0.016), Vector2(hp + 0.016, dp + 0.016), bgc.darkened(0.3), 10, false, false)
+			m.tube(0, 0, 0.99, 1.02, Vector2(hp + 0.016, dp + 0.016), Vector2(hp + 0.016, dp + 0.016), bgc.darkened(0.3), 14, false, false)
 		else:
 			var big: bool = bag.get("big", false)
 			var bh := 0.34 if bgs == 1 else (0.52 if big else 0.46)
@@ -377,32 +381,44 @@ static func build_arrays(L: Dictionary) -> MB:
 		var sx := -0.215 if side == 0 else 0.215
 		var ar := 0.052 * (0.93 + (bw - 1.0) * 1.3) + bulk * 0.6
 		m.bone = B_ARM_L if side == 0 else B_ARM_R
-		m.ellipsoid(Vector3(sx, 1.452, 0), Vector3(ar + 0.007, ar + 0.006, ar + 0.008), up_arm, 8, 4)
+		m.ellipsoid(Vector3(sx, 1.452, 0), Vector3(ar + 0.007, ar + 0.006, ar + 0.008), up_arm, 12, 6)
 		if sl == 1 and not jacket and has_top:
-			m.tube(sx, 0, 1.17, 1.46, Vector2(ar - 0.007, ar - 0.005), Vector2(ar, ar), skin, 8, false, false)
-			m.tube(sx, 0, 1.31, 1.46, Vector2(ar + 0.006, ar + 0.006), Vector2(ar + 0.004, ar + 0.004), tc, 8, true, false, 2 if sleeve_bands > 1 else 1, tc2)
+			m.tube(sx, 0, 1.17, 1.46, Vector2(ar - 0.007, ar - 0.005), Vector2(ar, ar), skin, 12, false, false)
+			m.tube(sx, 0, 1.31, 1.46, Vector2(ar + 0.006, ar + 0.006), Vector2(ar + 0.004, ar + 0.004), tc, 12, true, false, 2 if sleeve_bands > 1 else 1, tc2)
 		else:
-			m.tube(sx, 0, 1.17, 1.46, Vector2(ar - 0.006, ar - 0.004), Vector2(ar, ar), up_arm, 8, false, false, sleeve_bands if up_arm != skin else 1, tc2)
+			m.tube(sx, 0, 1.17, 1.46, Vector2(ar - 0.006, ar - 0.004), Vector2(ar, ar), up_arm, 12, false, false, sleeve_bands if up_arm != skin else 1, tc2)
 		if jacket and opat == 2:
-			m.tube(sx, 0, 1.24, 1.27, Vector2(ar + 0.002, ar + 0.003), Vector2(ar + 0.002, ar + 0.003), refl, 8, false, false)
+			m.tube(sx, 0, 1.24, 1.27, Vector2(ar + 0.002, ar + 0.003), Vector2(ar + 0.002, ar + 0.003), refl, 12, false, false)
 		m.bone = B_FARM_L if side == 0 else B_FARM_R
-		m.ellipsoid(Vector3(sx, 1.17, 0), Vector3(ar - 0.004, ar - 0.002, ar - 0.002), lo_arm, 6, 3)
-		m.tube(sx, 0, 0.91, 1.17, Vector2(ar - 0.016, ar - 0.014), Vector2(ar - 0.006, ar - 0.004), lo_arm, 8, false, false, sleeve_bands if lo_arm != skin else 1, tc2)
+		m.ellipsoid(Vector3(sx, 1.17, 0), Vector3(ar - 0.004, ar - 0.002, ar - 0.002), lo_arm, 10, 5)
+		m.tube(sx, 0, 0.91, 1.17, Vector2(ar - 0.016, ar - 0.014), Vector2(ar - 0.006, ar - 0.004), lo_arm, 12, false, false, sleeve_bands if lo_arm != skin else 1, tc2)
 		var hc: Color = gl if gl != null else skin
-		m.box(Vector3(sx, 0.855, -0.006), Vector3(0.042, 0.105, 0.078), hc)
-		m.box(Vector3(sx + (0.012 if side == 0 else -0.012), 0.875, -0.05), Vector3(0.026, 0.06, 0.03), hc)
+		m.ellipsoid(Vector3(sx, 0.905, -0.004), Vector3(0.034, 0.03, 0.04), hc, 8, 4)
+		m.box(Vector3(sx, 0.862, -0.004), Vector3(0.04, 0.07, 0.076), hc)
+		for fg in 4:
+			m.box(Vector3(sx, 0.806, -0.033 + fg * 0.02), Vector3(0.034, 0.05, 0.017), hc.darkened(0.03 * (fg % 2)))
+		m.box(Vector3(sx + (0.014 if side == 0 else -0.014), 0.858, -0.052), Vector3(0.024, 0.055, 0.026), hc)
 
 	# ---------------- pescoco e cabeca
 	m.bone = B_HEAD
-	m.tube(0, 0, 1.47, 1.57, Vector2(0.052, 0.054), Vector2(0.048, 0.05), skin, 8, false, false)
+	m.tube(0, 0, 1.47, 1.57, Vector2(0.052, 0.054), Vector2(0.048, 0.05), skin, 12, false, false)
 	var hc0 := Vector3(0, 1.665, -0.004)
 	var hr := Vector3(0.094, 0.122, 0.104)
-	m.ellipsoid(hc0, hr, skin, 10, 7)
+	m.ellipsoid(hc0, hr, skin, 16, 10)
 	var eye := Color(0.08, 0.07, 0.07) if not is_z else Color(0.82, 0.8, 0.7)
-	m.box(Vector3(-0.036, 1.685, -0.097), Vector3(0.024, 0.012, 0.012), eye)
-	m.box(Vector3(0.036, 1.685, -0.097), Vector3(0.024, 0.012, 0.012), eye)
-	m.box(Vector3(0, 1.652, -0.106), Vector3(0.018, 0.034, 0.016), skin.darkened(0.06))
-	m.box(Vector3(0, 1.607, -0.094), Vector3(0.04, 0.008, 0.012), skin.darkened(0.42) if not is_z else Color(0.3, 0.05, 0.05))
+	var sclera := Color(0.93, 0.92, 0.88) if not is_z else Color(0.80, 0.76, 0.55)
+	var iris: Color = L.get("eyes", Color(0.22, 0.16, 0.1)) if not is_z else Color(0.62, 0.6, 0.55)
+	for ex in [-0.036, 0.036]:
+		m.box(Vector3(ex, 1.686, -0.092), Vector3(0.034, 0.022, 0.012), skin.darkened(0.22))
+		m.box(Vector3(ex, 1.686, -0.096), Vector3(0.028, 0.014, 0.012), sclera)
+		m.box(Vector3(ex, 1.686, -0.099), Vector3(0.012, 0.013, 0.01), iris)
+		m.box(Vector3(ex, 1.686, -0.1005), Vector3(0.006, 0.007, 0.01), Color(0.04, 0.04, 0.04))
+		m.box_t(Transform3D(Basis(Vector3.BACK, 0.12 * signf(ex)), Vector3(ex, 1.706, -0.097)), Vector3(0.036, 0.007, 0.014), hairc.darkened(0.2))
+	m.ellipsoid(Vector3(0, 1.652, -0.102), Vector3(0.013, 0.022, 0.02), skin.darkened(0.05), 6, 4)
+	m.box(Vector3(0, 1.636, -0.104), Vector3(0.024, 0.008, 0.012), skin.darkened(0.14))
+	m.box(Vector3(0, 1.607, -0.094), Vector3(0.042, 0.007, 0.012), skin.darkened(0.45) if not is_z else Color(0.3, 0.05, 0.05))
+	m.box(Vector3(0, 1.600, -0.093), Vector3(0.034, 0.008, 0.012), skin.lerp(Color(0.7, 0.35, 0.33), 0.45) if not is_z else Color(0.4, 0.3, 0.28))
+	m.ellipsoid(Vector3(0, 1.575, -0.07), Vector3(0.05, 0.03, 0.04), skin, 8, 4)
 	m.box(Vector3(-0.097, 1.665, 0.0), Vector3(0.012, 0.04, 0.026), skin.darkened(0.08))
 	m.box(Vector3(0.097, 1.665, 0.0), Vector3(0.012, 0.04, 0.026), skin.darkened(0.08))
 	var hst: int = L.get("hair_style", 1)
@@ -410,11 +426,11 @@ static func build_arrays(L: Dictionary) -> MB:
 	if hst >= 1:
 		var hh := Vector3(hr.x + 0.012, hr.y + 0.012, hr.z + 0.014)
 		if hats == 0:
-			m.ellipsoid(hc0 + Vector3(0, 0.008, 0.012), hh, hairc, 10, 4, 0.0, 1.32)
+			m.ellipsoid(hc0 + Vector3(0, 0.008, 0.012), hh, hairc, 16, 6, 0.0, 1.32)
 		if hst >= 2 and hats != 3:
-			m.ellipsoid(hc0 + Vector3(0, 0.0, 0.03), Vector3(hr.x + 0.012, hr.y + 0.004, hr.z + 0.006), hairc, 10, 4, 0.9, 2.3)
+			m.ellipsoid(hc0 + Vector3(0, 0.0, 0.03), Vector3(hr.x + 0.012, hr.y + 0.004, hr.z + 0.006), hairc, 16, 6, 0.9, 2.3)
 		if hst == 3:
-			m.tube(0, 0.075, 1.40, 1.62, Vector2(0.088, 0.035), Vector2(0.1, 0.05), hairc, 8, true, false)
+			m.tube(0, 0.075, 1.40, 1.62, Vector2(0.088, 0.035), Vector2(0.1, 0.05), hairc, 12, true, false)
 		elif hst == 4:
 			m.tube(0, 0.135, 1.46, 1.70, Vector2(0.022, 0.022), Vector2(0.038, 0.038), hairc, 6, true, true)
 		elif hst == 5 and hats == 0:
@@ -423,21 +439,21 @@ static func build_arrays(L: Dictionary) -> MB:
 	if brd == 1:
 		m.box(Vector3(0, 1.582, -0.082), Vector3(0.075, 0.045, 0.03), hairc)
 	elif brd >= 2:
-		m.ellipsoid(Vector3(0, 1.60, -0.03), Vector3(0.092, 0.075, 0.09), hairc, 8, 4, 1.45, PI)
+		m.ellipsoid(Vector3(0, 1.60, -0.03), Vector3(0.092, 0.075, 0.09), hairc, 12, 6, 1.45, PI)
 	if hats > 0:
 		var hcol: Color = _soil(hat.get("col", Color(0.2, 0.25, 0.4)), dirt, 0.0, 0.6)
 		var hcol2: Color = hat.get("col2", hcol.darkened(0.2)) if hat.get("trim", false) else hcol.darkened(0.16)
 		if hats == 1:
 			var crown := 0.02 if hat.get("flat", false) else 0.0
-			m.ellipsoid(hc0 + Vector3(0, 0.03 + crown, 0.006), Vector3(hr.x + 0.016, hr.y - 0.012 + crown, hr.z + 0.018), hcol, 10, 4, 0.0, 1.5)
+			m.ellipsoid(hc0 + Vector3(0, 0.03 + crown, 0.006), Vector3(hr.x + 0.016, hr.y - 0.012 + crown, hr.z + 0.018), hcol, 16, 6, 0.0, 1.5)
 			m.box(Vector3(0, 1.715, -0.15), Vector3(0.14, 0.012, 0.11), hcol2)
 			if hat.get("flat", false):
 				m.box(Vector3(0, 1.77, -0.112), Vector3(0.04, 0.04, 0.012), Color(0.85, 0.75, 0.3))
 		elif hats == 2:
-			m.ellipsoid(hc0 + Vector3(0, 0.022, 0.004), Vector3(hr.x + 0.018, hr.y + 0.012, hr.z + 0.02), hcol, 10, 5, 0.0, 1.62)
-			m.tube(0, -0.004, 1.672, 1.715, Vector2(hr.x + 0.023, hr.z + 0.025), Vector2(hr.x + 0.023, hr.z + 0.025), hcol2, 10, false, false)
+			m.ellipsoid(hc0 + Vector3(0, 0.022, 0.004), Vector3(hr.x + 0.018, hr.y + 0.012, hr.z + 0.02), hcol, 16, 7, 0.0, 1.62)
+			m.tube(0, -0.004, 1.672, 1.715, Vector2(hr.x + 0.023, hr.z + 0.025), Vector2(hr.x + 0.023, hr.z + 0.025), hcol2, 14, false, false)
 		elif hats == 3:
-			m.ellipsoid(hc0 + Vector3(0, 0.026, 0.004), Vector3(hr.x + 0.03, hr.y + 0.022, hr.z + 0.034), hcol, 10, 5, 0.0, 2.2 if hat.get("full", false) else 1.66)
+			m.ellipsoid(hc0 + Vector3(0, 0.026, 0.004), Vector3(hr.x + 0.03, hr.y + 0.022, hr.z + 0.034), hcol, 16, 7, 0.0, 2.2 if hat.get("full", false) else 1.66)
 			if hat.get("full", false):
 				m.box(Vector3(0, 1.68, -0.125), Vector3(0.17, 0.07, 0.03), Color(0.08, 0.09, 0.11))
 			else:
@@ -446,10 +462,10 @@ static func build_arrays(L: Dictionary) -> MB:
 				m.box(Vector3(0, 1.815, 0.02), Vector3(0.03, 0.035, 0.24), hcol.darkened(0.15))
 				m.box(Vector3(0, 1.69, 0.14), Vector3(0.2, 0.014, 0.1), hcol.darkened(0.2))
 		elif hats == 4:
-			m.tube(0, 0, 1.728, 1.742, Vector2(0.21, 0.21), Vector2(0.21, 0.21), hcol, 12, true, true)
-			m.tube(0, 0, 1.74, 1.83, Vector2(0.105, 0.115), Vector2(0.09, 0.1), hcol, 10, false, true)
+			m.tube(0, 0, 1.728, 1.742, Vector2(0.21, 0.21), Vector2(0.21, 0.21), hcol, 16, true, true)
+			m.tube(0, 0, 1.74, 1.83, Vector2(0.105, 0.115), Vector2(0.09, 0.1), hcol, 14, false, true)
 			if hat.get("trim", false):
-				m.tube(0, 0, 1.742, 1.765, Vector2(0.108, 0.118), Vector2(0.105, 0.115), hcol2, 10, false, false)
+				m.tube(0, 0, 1.742, 1.765, Vector2(0.108, 0.118), Vector2(0.105, 0.115), hcol2, 14, false, false)
 	if L.has("mask"):
 		m.box(Vector3(0, 1.618, -0.088), Vector3(0.115, 0.06, 0.04), L["mask"])
 	if L.has("glasses"):

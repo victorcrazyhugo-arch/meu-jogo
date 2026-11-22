@@ -2,11 +2,11 @@
 
 Jogo original de sobrevivência zumbi em mundo aberto, em terceira pessoa, feito para celular (Android, tela horizontal, solo e offline). Todo o conteúdo — código, modelos, animações, sons, mapa e interface — é gerado por este projeto; não há arquivos de terceiros.
 
-**Versão atual: 0.1.1** — primeira versão jogável. É um começo, não o jogo completo descrito no documento de requisitos: veja o que está pronto, parcial e pendente em [`docs/PENDENCIAS.md`](docs/PENDENCIAS.md).
+**Versão atual: 0.1.2** — primeira versão jogável. É um começo, não o jogo completo descrito no documento de requisitos: veja o que está pronto, parcial e pendente em [`docs/PENDENCIAS.md`](docs/PENDENCIAS.md).
 
 ## Baixar e instalar
 
-- APK: [`builds/UltimaBruma-0.1.1-arm64.apk`](builds/UltimaBruma-0.1.1-arm64.apk) (28 MB, Android 7.0 ou mais novo, aparelhos de 64 bits).
+- APK: [`builds/UltimaBruma-0.1.2-arm64.apk`](builds/UltimaBruma-0.1.2-arm64.apk) (28 MB, Android 7.0 ou mais novo, aparelhos de 64 bits).
 - No celular, abra o arquivo e permita "instalar apps desconhecidos" para o aplicativo usado para abri-lo.
 - O APK foi compilado e assinado, mas **ainda não foi testado em um aparelho físico**. Se algo falhar, anote o modelo do celular e o que aconteceu.
 
@@ -19,6 +19,7 @@ Jogo original de sobrevivência zumbi em mundo aberto, em terceira pessoa, feito
 - Inventário com peso, saque por contexto, roupas modulares, culinária, líquidos, fabricação, construção, barricadas, agricultura, coleta vegetal e corte de árvores.
 - Veículos dirigíveis com combustível, peças e mecânica.
 - Dia e noite, calendário, estações, chuva, tempestade, neblina; corte de água e energia; postes, geradores, coletor de chuva.
+- Materiais gerados por shader para cada tipo de superfície (tijolos, tábuas, telhas, asfalto, grama, madeira, tecido, vidro com reflexo), com relevo e chão molhado na chuva — sem arquivos de textura.
 - Salvamento local versionado com cópia de recuperação, vários mundos, sandbox com predefinições.
 
 ## Controles

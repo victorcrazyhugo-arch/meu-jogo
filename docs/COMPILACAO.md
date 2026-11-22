@@ -32,7 +32,7 @@ GODOT=/caminho/para/godot tools/build_apk.sh
 O script importa os recursos e exporta `builds/UltimaBruma-<versão>.apk` com a predefinição "Android" (arm64 + armv7). A predefinição "Android arm64" gera o arquivo menor, só de 64 bits:
 
 ```bash
-godot --headless --path . --export-release "Android arm64" builds/UltimaBruma-0.1.1-arm64.apk
+godot --headless --path . --export-release "Android arm64" builds/UltimaBruma-0.1.2-arm64.apk
 ```
 
 ### Assinatura

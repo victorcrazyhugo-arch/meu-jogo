@@ -11,6 +11,37 @@ var bones := PackedInt32Array()
 var weights := PackedFloat32Array()
 var use_bones := false
 var bone := 0
+var use_uv := false          # grava a posicao de repouso em UV/UV2 (padroes fixos em malhas com esqueleto)
+var mat_a := -1.0            # tipo de superficie gravado no alfa da cor (-1 = manter o alfa da cor)
+
+# tipos de superficie reconhecidos pelo shader do cenario (alfa = id / 20)
+const M_GRASS := 0.05
+const M_ASPHALT := 0.10
+const M_CONCRETE := 0.15
+const M_BRICK := 0.20
+const M_PLASTER := 0.25
+const M_SIDING := 0.30
+const M_CORR := 0.35
+const M_FLOORWOOD := 0.40
+const M_TILE := 0.45
+const M_ROOF := 0.50
+const M_DIRT := 0.55
+const M_FABRIC := 0.60
+const M_SOIL := 0.65
+const M_STONE := 0.70
+const M_WOOD := 0.75
+const M_METAL := 0.90
+const M_PAINT := 0.95           # parede interna pintada, com rodape
+
+
+func _mc(col: Color) -> Color:
+	if mat_a < 0.0:
+		return col
+	return Color(col.r, col.g, col.b, mat_a)
+
+
+static func wm(col: Color, mat: float) -> Color:
+	return Color(col.r, col.g, col.b, mat)
 
 
 func _skin(count: int) -> void:
@@ -23,7 +54,7 @@ func quad(a: Vector3, b: Vector3, cc: Vector3, d: Vector3, nor: Vector3, col: Co
 	var i := v.size()
 	v.append(a); v.append(b); v.append(cc); v.append(d)
 	n.append(nor); n.append(nor); n.append(nor); n.append(nor)
-	c.append(col); c.append(col); c.append(col); c.append(col)
+	c.append(_mc(col)); c.append(_mc(col)); c.append(_mc(col)); c.append(_mc(col))
 	ix.append(i); ix.append(i + 1); ix.append(i + 2); ix.append(i); ix.append(i + 2); ix.append(i + 3)
 	if use_bones:
 		_skin(4)
@@ -105,14 +136,14 @@ func tube(cx: float, cz: float, y0: float, y1: float, r0: Vector2, r1: Vector2, 
 			var sn := sin(th)
 			v.append(Vector3(cx + ra.x * cs, ya, cz + ra.y * sn))
 			n.append(Vector3(cs * ra.y, 0.0, sn * ra.x).normalized())
-			c.append(bc)
+			c.append(_mc(bc))
 		for i in sides:
 			var th := TAU * float(i) / sides
 			var cs := cos(th)
 			var sn := sin(th)
 			v.append(Vector3(cx + rb.x * cs, yb, cz + rb.y * sn))
 			n.append(Vector3(cs * rb.y, 0.0, sn * rb.x).normalized())
-			c.append(bc)
+			c.append(_mc(bc))
 		if use_bones:
 			_skin(sides * 2)
 		for i in sides:
@@ -144,10 +175,10 @@ func _tube_checker(cx: float, cz: float, y0: float, y1: float, r0: Vector2, r1: 
 			var base := v.size()
 			var n0 := Vector3(cos(th0) * ra.y, 0.0, sin(th0) * ra.x).normalized()
 			var n1 := Vector3(cos(th1) * ra.y, 0.0, sin(th1) * ra.x).normalized()
-			v.append(Vector3(cx + ra.x * cos(th0), ya, cz + ra.y * sin(th0))); n.append(n0); c.append(bc)
-			v.append(Vector3(cx + ra.x * cos(th1), ya, cz + ra.y * sin(th1))); n.append(n1); c.append(bc)
-			v.append(Vector3(cx + rb.x * cos(th0), yb, cz + rb.y * sin(th0))); n.append(n0); c.append(bc)
-			v.append(Vector3(cx + rb.x * cos(th1), yb, cz + rb.y * sin(th1))); n.append(n1); c.append(bc)
+			v.append(Vector3(cx + ra.x * cos(th0), ya, cz + ra.y * sin(th0))); n.append(n0); c.append(_mc(bc))
+			v.append(Vector3(cx + ra.x * cos(th1), ya, cz + ra.y * sin(th1))); n.append(n1); c.append(_mc(bc))
+			v.append(Vector3(cx + rb.x * cos(th0), yb, cz + rb.y * sin(th0))); n.append(n0); c.append(_mc(bc))
+			v.append(Vector3(cx + rb.x * cos(th1), yb, cz + rb.y * sin(th1))); n.append(n1); c.append(_mc(bc))
 			if use_bones:
 				_skin(4)
 			ix.append(base + 2); ix.append(base); ix.append(base + 1)
@@ -157,11 +188,11 @@ func _tube_checker(cx: float, cz: float, y0: float, y1: float, r0: Vector2, r1: 
 func _cap(cx: float, cz: float, y: float, r: Vector2, col: Color, sides: int, top: bool) -> void:
 	var base := v.size()
 	var nor := Vector3.UP if top else Vector3.DOWN
-	v.append(Vector3(cx, y, cz)); n.append(nor); c.append(col)
+	v.append(Vector3(cx, y, cz)); n.append(nor); c.append(_mc(col))
 	for i in sides:
 		var th := TAU * float(i) / sides
 		v.append(Vector3(cx + r.x * cos(th), y, cz + r.y * sin(th)))
-		n.append(nor); c.append(col)
+		n.append(nor); c.append(_mc(col))
 	if use_bones:
 		_skin(sides + 1)
 	for i in sides:
@@ -184,7 +215,7 @@ func ellipsoid(ct: Vector3, r: Vector3, col: Color, segs: int = 8, rings: int = 
 			var d := Vector3(sp * cos(th), cp, sp * sin(th))
 			v.append(ct + Vector3(d.x * r.x, d.y * r.y, d.z * r.z))
 			n.append(Vector3(d.x / r.x, d.y / r.y, d.z / r.z).normalized())
-			c.append(col)
+			c.append(_mc(col))
 	if use_bones:
 		_skin((rings + 1) * segs)
 	for j in rings:
@@ -226,7 +257,7 @@ func tri_auto(a: Vector3, b: Vector3, cc: Vector3, nor: Vector3, col: Color) -> 
 	var i := v.size()
 	v.append(a); v.append(b); v.append(cc)
 	n.append(nor); n.append(nor); n.append(nor)
-	c.append(col); c.append(col); c.append(col)
+	c.append(_mc(col)); c.append(_mc(col)); c.append(_mc(col))
 	if (b - a).cross(cc - a).dot(nor) > 0.0:
 		ix.append(i); ix.append(i + 2); ix.append(i + 1)
 	else:
@@ -249,6 +280,16 @@ func arrays() -> Array:
 	if use_bones:
 		a[Mesh.ARRAY_BONES] = bones
 		a[Mesh.ARRAY_WEIGHTS] = weights
+	if use_uv:
+		var uv := PackedVector2Array()
+		var uv2 := PackedVector2Array()
+		uv.resize(v.size())
+		uv2.resize(v.size())
+		for i in v.size():
+			uv[i] = Vector2(v[i].x, v[i].y)
+			uv2[i] = Vector2(v[i].z, 0.0)
+		a[Mesh.ARRAY_TEX_UV] = uv
+		a[Mesh.ARRAY_TEX_UV2] = uv2
 	return a
 
 

@@ -1,6 +1,8 @@
-# Relatório de testes — Última Bruma 0.1.1
+# Relatório de testes — Última Bruma 0.1.2
 
 Data: 22 de novembro de 2026.
+
+> Versão 0.1.2: os quatro roteiros de funcionamento foram executados de novo depois da troca dos materiais gráficos. **A tabela de carga por cena abaixo é da versão 0.1.1 e não foi refeita**: os novos shaders custam mais por pixel, e esse custo só pode ser avaliado em um aparelho com GPU.
 
 ## Onde os testes rodaram
 
@@ -87,6 +89,8 @@ Data: 22 de novembro de 2026.
 | Personagem pula a cerca | aprovado | atravessou 2 m em ~0,7 s |
 
 Defeitos encontrados por estes testes e corrigidos: (1) morte causada por dano externo não iniciava a sequência de morte; (2) o corpo do personagem ficava invisível por um erro na lógica de câmera; (3) dupla conversão de cor deixava o cenário quase preto; (4) o HUD tinha largura zero.
+
+Observações da versão 0.1.2: (1) uma execução do roteiro `jogo` feita ao mesmo tempo que a renderização de capturas e a exportação do APK parou com um erro de script (`global_position` em objeto nulo) e não chegou ao resultado; repetido sozinho, o roteiro passou nas 25 verificações. A causa não foi isolada — é provável que seja o próprio roteiro esperando pouco tempo sob carga, mas isso não foi confirmado. (2) Ao encerrar o jogo enquanto uma região ainda está sendo gerada, a thread de geração registra um erro de script (`chunk_camps` em instância nula); acontece só no fechamento e não foi corrigido.
 
 Limites dos testes: são verificações de "funciona neste caso", não de equilíbrio. Itens sem teste dedicado estão marcados como parciais na matriz. O teste de interrupção de gravação simula os estados em disco; não mata o processo de verdade.
 
