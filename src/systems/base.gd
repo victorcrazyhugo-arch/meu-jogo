@@ -418,7 +418,7 @@ static func new_plot(w: Node3D, pos: Vector3) -> Dictionary:
 	return p
 
 
-static func plot_at(w: Node3D, pos: Vector3):
+static func plot_at(w: Node3D, pos: Vector3) -> Variant:
 	var ch = w.chunk_at(pos)
 	if ch == null:
 		return null

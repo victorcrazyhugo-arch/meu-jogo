@@ -30,7 +30,7 @@ var tutorial_text := ""
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	font = ThemeDB.fallback_font
 	G.toast.connect(_on_toast)
@@ -142,7 +142,7 @@ func _put(id: String, c: Vector2, r: float, label: String, left: bool, on: bool 
 	b["rect"] = false
 
 
-func _hit(pos: Vector2):
+func _hit(pos: Vector2) -> Variant:
 	for b in buttons:
 		if not b["show"]:
 			continue

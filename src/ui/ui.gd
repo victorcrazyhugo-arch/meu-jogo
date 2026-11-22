@@ -42,7 +42,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	th = make_theme()
 	root = Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.theme = th
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
@@ -136,10 +136,10 @@ func _frame(title: String, tabs: Array = []) -> void:
 			c.queue_free()
 	var bg := ColorRect.new()
 	bg.color = C_BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(bg)
 	var m := MarginContainer.new()
-	m.set_anchors_preset(Control.PRESET_FULL_RECT)
+	m.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var safe := 14
 	if G.hud != null:
 		safe = int(maxf(14.0, maxf(G.hud.margin.x, G.hud.margin.z) + 6.0))
@@ -215,6 +215,7 @@ func refresh() -> void:
 			_build_mech()
 		"ctx":
 			pass
+	_fix_rows(root)
 
 
 func _process(dt: float) -> void:
@@ -889,7 +890,7 @@ func start_placing(type: String, item) -> void:
 	placing = {"type": type, "rot": 0, "ghost": mi, "item": item, "ok": false}
 	place_bar = HBoxContainer.new()
 	place_bar.theme = th
-	place_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	place_bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	place_bar.position = Vector2(-260, -84)
 	place_bar.custom_minimum_size = Vector2(520, 60)
 	place_bar.anchor_left = 0.5
@@ -976,7 +977,7 @@ func _confirm_place() -> void:
 		Sfx.noise(pos, 12.0)
 		G.say("%s: construção concluída." % d["n"])
 	Sfx.play3d("craft", pos)
-	var secs := 2.0 if d.has("item") else 6.0 - p.sv.level("carpintaria") * 0.3
+	var secs: float = 2.0 if d.has("item") else 6.0 - p.sv.level("carpintaria") * 0.3
 	p.start_action("Construindo" if not d.has("item") else "Colocando", secs, "work", done)
 
 
@@ -1172,13 +1173,13 @@ func show_context(target: Dictionary, acts: Array) -> void:
 	current = "ctx"
 	var bg := ColorRect.new()
 	bg.color = Color(0, 0, 0, 0.45)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.gui_input.connect(func(ev: InputEvent):
 		if ev is InputEventMouseButton and ev.pressed:
 			close())
 	root.add_child(bg)
 	var pc := PanelContainer.new()
-	pc.set_anchors_preset(Control.PRESET_CENTER)
+	pc.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	pc.custom_minimum_size = Vector2(520, 0)
 	pc.anchor_left = 0.5
 	pc.anchor_right = 0.5
@@ -1309,3 +1310,14 @@ func from_dict(d: Dictionary) -> void:
 	revealed = d.get("revealed", [false, false])
 	markers = d.get("markers", [])
 	map_center = Vector2.ZERO
+
+
+## Ajusta rotulos e botoes dentro de linhas horizontais: sem quebra de linha e com largura minima.
+func _fix_rows(n: Node) -> void:
+	for c in n.get_children():
+		if c is Label and c.get_parent() is HBoxContainer and c.custom_minimum_size.x <= 0.0 and (c.size_flags_horizontal & Control.SIZE_EXPAND) == 0:
+			c.autowrap_mode = TextServer.AUTOWRAP_OFF
+		elif c is Button and c.get_parent() is HBoxContainer and c.custom_minimum_size.x <= 0.0 and (c.size_flags_horizontal & Control.SIZE_EXPAND) == 0:
+			var fs: int = c.get_theme_font_size("font_size")
+			c.custom_minimum_size.x = ThemeDB.fallback_font.get_string_size(c.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 30.0
+		_fix_rows(c)

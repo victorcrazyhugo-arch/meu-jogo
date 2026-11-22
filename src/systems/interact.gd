@@ -486,7 +486,7 @@ static func _burn_fuel(p: Node) -> float:
 	return mins
 
 
-static func _empty_can(p: Node):
+static func _empty_can(p: Node) -> Variant:
 	for it in p.inv.items:
 		var d := Items.def(it["id"])
 		if d.has("fuel") and float(it.get("liq", 0.0)) < float(d["cap"]) - 0.05 and it.get("lt", "") in ["", "gasolina"]:
@@ -710,7 +710,7 @@ static func _vault_window(p: Node3D, b: Building, i: int) -> void:
 			Sfx.play3d("hurt", p.global_position)
 			if G.hud != null:
 				G.hud.flash_damage()
-	var slow := 1.0 + p.sv.leg_penalty() + maxf(0.0, p.sv.carry / maxf(p.sv.carry_max, 0.1) - 1.0)
+	var slow: float = 1.0 + p.sv.leg_penalty() + maxf(0.0, p.sv.carry / maxf(p.sv.carry_max, 0.1) - 1.0)
 	_move_arc(p, dst, 0.85 * slow, 0.75)
 	p.sv.spend(0.04)
 	Sfx.noise(wp, 5.0)
@@ -1378,7 +1378,7 @@ static func wound_actions(p: Node3D, part: int, w: Dictionary) -> Array:
 	return a
 
 
-static func _bandage_item(inv: Inv):
+static func _bandage_item(inv: Inv) -> Variant:
 	for id in ["atadura", "pano", "atadura_suja", "pano_sujo"]:
 		var it = inv.find(id)
 		if it != null:
@@ -1386,7 +1386,7 @@ static func _bandage_item(inv: Inv):
 	return null
 
 
-static func _disinfect_item(inv: Inv):
+static func _disinfect_item(inv: Inv) -> Variant:
 	for id in ["alcool", "uisque"]:
 		var it = inv.find(id)
 		if it != null:

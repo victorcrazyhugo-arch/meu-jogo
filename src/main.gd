@@ -119,12 +119,12 @@ func _loading(text: String) -> void:
 	add_child(overlay)
 	var bg := ColorRect.new()
 	bg.color = Color(0.04, 0.05, 0.06)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.add_child(bg)
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", 30)
-	l.set_anchors_preset(Control.PRESET_CENTER)
+	l.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	l.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	bg.add_child(l)
@@ -473,11 +473,11 @@ func _show_death() -> void:
 	add_child(overlay)
 	var bg := ColorRect.new()
 	bg.color = Color(0.1, 0.0, 0.0, 0.78)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.theme = UiScript.make_theme()
 	overlay.add_child(bg)
 	var v := VBoxContainer.new()
-	v.set_anchors_preset(Control.PRESET_CENTER)
+	v.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	v.anchor_left = 0.5
 	v.anchor_right = 0.5
 	v.anchor_top = 0.5

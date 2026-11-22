@@ -19,6 +19,7 @@ var glass_body: StaticBody3D
 var glass_mi: MeshInstance3D
 var extra_mi: MeshInstance3D
 var main_mi: MeshInstance3D
+var inner_mi: MeshInstance3D
 var door_nodes: Array = []
 var label: Label3D
 var alarm_t := 0.0
@@ -37,7 +38,7 @@ static func box_shape(size: Vector3) -> BoxShape3D:
 	return s
 
 
-func setup(p: BPlan, mb: MB, st: Dictionary) -> void:
+func setup(p: BPlan, mb: MB, st: Dictionary, inner: MB = null) -> void:
 	plan = p
 	state = st
 	if not state.has("doors"):
@@ -50,6 +51,14 @@ func setup(p: BPlan, mb: MB, st: Dictionary) -> void:
 	main_mi = MeshInstance3D.new()
 	main_mi.mesh = mb.to_mesh(Mats.world)
 	add_child(main_mi)
+	# moveis e decoracao: so desenhados de perto (o estado e a colisao nao dependem disso)
+	inner_mi = MeshInstance3D.new()
+	if inner == null:
+		inner = plan.build_interior()
+	inner_mi.mesh = inner.to_mesh(Mats.world)
+	inner_mi.visibility_range_end = maxf(42.0, Vector2(plan.w, plan.d).length() * 0.5 + 26.0)
+	inner_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(inner_mi)
 	body = StaticBody3D.new()
 	body.collision_layer = G.L_WORLD
 	body.collision_mask = 0
@@ -94,6 +103,7 @@ func _add_colliders() -> void:
 func rebuild_static() -> void:
 	var mb := plan.build_mesh()
 	main_mi.mesh = mb.to_mesh(Mats.world)
+	inner_mi.mesh = plan.build_interior().to_mesh(Mats.world)
 	_add_colliders()
 
 

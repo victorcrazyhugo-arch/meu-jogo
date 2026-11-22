@@ -103,7 +103,7 @@ func capacity(sv: Survivor) -> float:
 
 
 ## Primeiro item com a etiqueta de ferramenta (inclui armas equipadas).
-func find_tag(tag: String):
+func find_tag(tag: String) -> Variant:
 	if primary != null and Items.has_tag(primary, tag):
 		return primary
 	if secondary != null and Items.has_tag(secondary, tag):
@@ -118,7 +118,7 @@ func has_tag(tag: String) -> bool:
 	return find_tag(tag) != null
 
 
-func find(id: String):
+func find(id: String) -> Variant:
 	for o in items:
 		if o["id"] == id:
 			return o
@@ -126,7 +126,7 @@ func find(id: String):
 
 
 ## Recipiente carregado com liquido do tipo dado e quantidade minima.
-func find_liquid(lt: String, min_l: float = 0.01):
+func find_liquid(lt: String, min_l: float = 0.01) -> Variant:
 	for o in items:
 		if o.has("liq") and o.get("lt", "") == lt and float(o["liq"]) >= min_l:
 			return o

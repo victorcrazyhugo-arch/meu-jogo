@@ -377,7 +377,7 @@ static func build_arrays(L: Dictionary) -> MB:
 		var sx := -0.215 if side == 0 else 0.215
 		var ar := 0.052 * (0.93 + (bw - 1.0) * 1.3) + bulk * 0.6
 		m.bone = B_ARM_L if side == 0 else B_ARM_R
-		m.ellipsoid(Vector3(sx, 1.455, 0), Vector3(ar + 0.014, ar + 0.012, ar + 0.016), up_arm, 6, 4)
+		m.ellipsoid(Vector3(sx, 1.452, 0), Vector3(ar + 0.007, ar + 0.006, ar + 0.008), up_arm, 8, 4)
 		if sl == 1 and not jacket and has_top:
 			m.tube(sx, 0, 1.17, 1.46, Vector2(ar - 0.007, ar - 0.005), Vector2(ar, ar), skin, 8, false, false)
 			m.tube(sx, 0, 1.31, 1.46, Vector2(ar + 0.006, ar + 0.006), Vector2(ar + 0.004, ar + 0.004), tc, 8, true, false, 2 if sleeve_bands > 1 else 1, tc2)

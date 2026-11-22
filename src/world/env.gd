@@ -28,6 +28,23 @@ func _ready() -> void:
 	sky_mat = ProceduralSkyMaterial.new()
 	sky_mat.sun_angle_max = 28.0
 	sky_mat.sun_curve = 0.12
+	# nuvens procedurais (textura propria gerada em tempo de execucao)
+	var cn := FastNoiseLite.new()
+	cn.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	cn.frequency = 0.012
+	cn.fractal_octaves = 4
+	cn.seed = 77
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.52, 0.78, 1.0])
+	grad.colors = PackedColorArray([Color(0, 0, 0, 1), Color(0, 0, 0, 1), Color(0.75, 0.75, 0.75, 1), Color(1, 1, 1, 1)])
+	var ct := NoiseTexture2D.new()
+	ct.width = 1024
+	ct.height = 512
+	ct.seamless = true
+	ct.noise = cn
+	ct.color_ramp = grad
+	sky_mat.sky_cover = ct
+	sky_mat.sky_cover_modulate = Color(1, 1, 1, 0.5)
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_32
@@ -220,8 +237,11 @@ func _update_sky(_dt: float) -> void:
 		sun.light_color = sun_col
 		sun.light_energy = (0.25 + 1.15 * dl) * (1.0 - cloud * 0.72) * (1.0 - fog * 0.4)
 	sun.light_energy += flash * 2.0
-	env.ambient_light_color = hor.lerp(top, 0.35).lerp(Color(0.5, 0.56, 0.7), 0.25 if night else 0.0)
-	env.ambient_light_energy = lerpf(0.34, 0.95, dl) + flash
+	# ambiente mais neutro (interiores nao ficam azulados) e nuvens conforme o clima
+	env.ambient_light_color = hor.lerp(top, 0.3).lerp(Color(0.86, 0.86, 0.84), 0.55 if not night else 0.2)
+	env.ambient_light_energy = lerpf(0.30, 0.78, dl) + flash
+	var cl := clampf(0.28 + cloud * 0.6, 0.0, 1.0) * (0.12 + 0.88 * dl)
+	sky_mat.sky_cover_modulate = Color(cl, cl, cl * 1.02, 1.0).lerp(Color(cl, cl * 0.72, cl * 0.5, 1.0), golden * 0.6)
 	# neblina (a "bruma" tambem esconde o limite de carregamento do mapa)
 	var far := draw_dist * lerpf(1.0, 0.36, fog) * lerpf(1.0, 0.72, rain) * lerpf(0.72, 1.0, dl)
 	env.fog_light_color = hor.lerp(gray * (0.12 + 0.9 * dl), 0.35)

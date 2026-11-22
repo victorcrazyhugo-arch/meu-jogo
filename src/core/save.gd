@@ -21,7 +21,7 @@ static func _write_var(path: String, data: Variant) -> bool:
 	return ok
 
 
-static func _read_var(path: String):
+static func _read_var(path: String) -> Variant:
 	if not FileAccess.file_exists(path):
 		return null
 	var f := FileAccess.open(path, FileAccess.READ)

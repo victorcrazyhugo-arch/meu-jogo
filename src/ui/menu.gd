@@ -49,7 +49,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	th = UiScript.make_theme()
 	root = Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.theme = th
 	add_child(root)
 	sandbox = G.SANDBOX_DEFAULT.duplicate(true)
@@ -119,10 +119,10 @@ func _base(title: String) -> VBoxContainer:
 	preview = null
 	var bg := ColorRect.new()
 	bg.color = Color(0.055, 0.065, 0.075)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(bg)
 	var m := MarginContainer.new()
-	m.set_anchors_preset(Control.PRESET_FULL_RECT)
+	m.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for s in ["margin_left", "margin_right"]:
 		m.add_theme_constant_override(s, 44)
 	m.add_theme_constant_override("margin_top", 16)
@@ -167,6 +167,7 @@ func _show(s: String) -> void:
 			_settings_ui.settings_into(sc)
 		"about":
 			_about()
+	_fix_rows(root)
 
 
 # =====================================================================================
@@ -209,7 +210,7 @@ func _main() -> void:
 func _add_preview(parent: Control) -> void:
 	var svc := SubViewportContainer.new()
 	svc.stretch = true
-	svc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	svc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(svc)
 	var sv := SubViewport.new()
@@ -461,3 +462,14 @@ func _about() -> void:
 	list.add_child(_lbl("Última Bruma %s — primeiro ciclo jogável." % G.VERSION, 22, C_ACC))
 	list.add_child(_lbl("Jogo original de sobrevivência em mundo aberto, em terceira pessoa, feito para celular. Código, modelos, animações procedurais, sons sintetizados, mapa e interface são próprios deste projeto.\n\nMapa: duas cidades (Santa Aurora e Porto Bruma) ligadas por rodovia, com rio, fazendas de produção vegetal, florestas, cabanas e acampamentos. O mundo não contém animais; não há caça, pesca nem criação.\n\nModo solo totalmente offline. O jogo salva sozinho e ao sair do aplicativo; o tempo do mundo só passa enquanto você joga.\n\nEsta é uma versão inicial: vários sistemas estão em forma básica e o multiplayer ficou para uma etapa posterior. A lista completa do que está pronto, parcial e pendente acompanha o projeto (pasta docs).", 19))
 	list.add_child(_lbl("Variantes de vestuário no catálogo: %d   •   Itens: %d   •   Receitas: %d   •   Edifícios no mapa: %d" % [Clothes.count_variants(), Items.D.size(), Recipes.LIST.size(), WorldGen.new().lots.size()], 17, Color(1, 1, 1, 0.65)))
+
+
+## Ajusta rotulos e botoes dentro de linhas horizontais: sem quebra de linha e com largura minima.
+func _fix_rows(n: Node) -> void:
+	for c in n.get_children():
+		if c is Label and c.get_parent() is HBoxContainer and c.custom_minimum_size.x <= 0.0 and (c.size_flags_horizontal & Control.SIZE_EXPAND) == 0:
+			c.autowrap_mode = TextServer.AUTOWRAP_OFF
+		elif c is Button and c.get_parent() is HBoxContainer and c.custom_minimum_size.x <= 0.0 and (c.size_flags_horizontal & Control.SIZE_EXPAND) == 0:
+			var fs: int = c.get_theme_font_size("font_size")
+			c.custom_minimum_size.x = ThemeDB.fallback_font.get_string_size(c.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 30.0
+		_fix_rows(c)

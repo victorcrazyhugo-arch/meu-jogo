@@ -170,7 +170,7 @@ func _physics_process(dt: float) -> void:
 	var dir := fwd * mv.y + rgt * mv.x
 	if dir.length() > 0.01:
 		dir = dir.normalized()
-	var locked := vaulting or sleeping or (not action.is_empty() and not action.get("move_ok", false) and mag < 0.35)
+	var locked: bool = vaulting or sleeping or (not action.is_empty() and not action.get("move_ok", false) and mag < 0.35)
 	if not action.is_empty() and not action.get("move_ok", false) and mag >= 0.35:
 		cancel_action()
 	var over := sv.carry / maxf(sv.carry_max, 0.1)

@@ -13,6 +13,8 @@ static var ghost_ok: StandardMaterial3D
 static var ghost_bad: StandardMaterial3D
 static var blood: StandardMaterial3D
 static var noise: NoiseTexture2D
+static var grass: ShaderMaterial
+static var pool: StandardMaterial3D
 static var ready := false
 
 
@@ -43,6 +45,22 @@ static func init() -> void:
 	flat.shader = sh
 	flat.set_shader_parameter("noise_tex", noise)
 	flat.set_shader_parameter("detail", 0.35)
+	# grama: mesma logica, sem descarte de faces
+	var sh2 := Shader.new()
+	sh2.code = sh.code.replace("cull_back", "cull_disabled")
+	grass = ShaderMaterial.new()
+	grass.shader = sh2
+	grass.set_shader_parameter("noise_tex", noise)
+	grass.set_shader_parameter("sway", 2.2)
+	grass.set_shader_parameter("detail", 0.4)
+	# poca de luz dos postes (aditiva)
+	pool = StandardMaterial3D.new()
+	pool.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	pool.vertex_color_use_as_albedo = true
+	pool.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	pool.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	pool.no_depth_test = false
+	pool.disable_receive_shadows = true
 	water = ShaderMaterial.new()
 	water.shader = load("res://src/shaders/water.gdshader")
 	water.set_shader_parameter("noise_tex", noise)

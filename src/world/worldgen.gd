@@ -77,6 +77,8 @@ var chunk_fields := {}
 var chunk_clear := {}
 var chunk_cars := {}
 var chunk_camps := {}
+var lamps: Array = []        # Vector3(x, z, rotacao do braco)
+var chunk_lamps := {}
 var _com_i := [0, 0, 0]
 var _r := RandomNumberGenerator.new()
 
@@ -172,6 +174,21 @@ func _city(city: int, x0: int, z0: int, plan: Array, bw: int, bd: int, rw: int) 
 			var bz := z0 + rw + j * (bd + rw)
 			_block(city, codes[i], bx, bz, bw, bd)
 	pois.append({"n": CITY_NAMES[city], "p": Vector2(x0 + tw * 0.5, z0 + td * 0.5), "k": "cidade"})
+	# postes de iluminacao nas calcadas
+	for j in rows + 1:
+		var ry := float(z0 + j * (bd + rw))
+		for i in cols:
+			var bx0 := float(x0 + rw + i * (bw + rw))
+			lamps.append(Vector3(bx0 + bw * 0.25, ry + 1.0, PI))
+			lamps.append(Vector3(bx0 + bw * 0.75, ry + rw - 1.0, 0.0))
+	for i in cols + 1:
+		var rx := float(x0 + i * (bw + rw))
+		for j in rows:
+			var bz0 := float(z0 + rw + j * (bd + rw))
+			if (i + j) % 2 == 0:
+				lamps.append(Vector3(rx + 1.0, bz0 + bd * 0.5, -PI * 0.5))
+			else:
+				lamps.append(Vector3(rx + rw - 1.0, bz0 + bd * 0.5, PI * 0.5))
 	# carros estacionados junto ao meio-fio
 	for j in rows + 1:
 		for i in cols:
@@ -420,6 +437,11 @@ func _index() -> void:
 		if not chunk_cars.has(k):
 			chunk_cars[k] = []
 		chunk_cars[k].append(c4["id"])
+	for i in lamps.size():
+		var k3 := ck(lamps[i].x, lamps[i].y)
+		if not chunk_lamps.has(k3):
+			chunk_lamps[k3] = []
+		chunk_lamps[k3].append(i)
 	for i in camps.size():
 		var k2 := ck(camps[i]["p"].x, camps[i]["p"].y)
 		if not chunk_camps.has(k2):
@@ -484,6 +506,7 @@ func trees_for(cx: int, cz: int) -> Array:
 		var kroll := r.randf()
 		var sc := r.randf_range(0.8, 1.45)
 		var rot := r.randf() * TAU
+		var vr := r.randi() % 6
 		var d := forest_density(x, z)
 		var zn := zone_at(x, z)
 		if zn == Z_RIVER or zn == Z_CITY:
@@ -503,6 +526,9 @@ func trees_for(cx: int, cz: int) -> Array:
 		if li2 >= 0 and lots[li2]["type"] != "praca":
 			continue
 		var kind := 0
+		if zn == Z_CITY and li2 >= 0:
+			# pracas: mais folhosas e arbustos
+			kroll = 0.25 + kroll * 0.6
 		if kroll < 0.14:
 			kind = 3
 		elif kroll < 0.19:
@@ -511,5 +537,27 @@ func trees_for(cx: int, cz: int) -> Array:
 			kind = 2
 		elif kroll < 0.62:
 			kind = 1
-		out.append({"x": x, "z": z, "k": kind, "s": sc, "r": rot})
+		out.append({"x": x, "z": z, "k": kind, "s": sc, "r": rot, "v": vr})
+	# quintais das casas: arvores nos fundos e arbustos na frente
+	for lid in chunk_lots.get(Vector2i(cx, cz), []):
+		var lot: Dictionary = lots[lid]
+		if lot["type"] != "casa":
+			continue
+		var lr: Rect2i = lot["lot"]
+		var b: Rect2i = lot["b"]
+		var south: bool = lot["face"] == 0
+		var rr := RandomNumberGenerator.new()
+		rr.seed = G.hash2(lid, 5, 31)
+		if rr.randf() < 0.7:
+			var tz := float(lr.position.y) + 2.5 if south else float(lr.end.y) - 2.5
+			var tx := float(lr.position.x) + 2.0 + rr.randf() * float(lr.size.x - 4)
+			out.append({"x": tx, "z": tz, "k": 1 if rr.randf() < 0.7 else 0, "s": rr.randf_range(0.75, 1.05), "r": rr.randf() * TAU, "v": rr.randi() % 6})
+		for n in 3:
+			if rr.randf() < 0.6:
+				var fr := rr.randf() * 0.26
+				if rr.randf() < 0.5:
+					fr = 1.0 - fr
+				var hx := float(b.position.x) + fr * float(b.size.x)
+				var hz := (float(b.end.y) + 0.9) if south else (float(b.position.y) - 0.9)
+				out.append({"x": hx, "z": hz, "k": 3, "s": rr.randf_range(0.6, 0.9), "r": rr.randf() * TAU, "v": rr.randi() % 6, "yard": true})
 	return out
