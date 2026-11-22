@@ -1,0 +1,47 @@
+; Engine configuration file.
+; Ultima Bruma - projeto Godot 4.5.1 (versao fixada do motor).
+
+config_version=5
+
+[application]
+
+config/name="Última Bruma"
+config/description="Sobrevivencia zumbi em terceira pessoa para celular. Duas cidades, sem animais."
+config/version="0.1.0"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.5", "GL Compatibility")
+boot_splash/bg_color=Color(0.043, 0.051, 0.059, 1)
+boot_splash/show_image=false
+config/icon="res://icon.png"
+
+[autoload]
+
+G="*res://src/core/game.gd"
+Sfx="*res://src/core/audio.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=4
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
+[physics]
+
+common/physics_ticks_per_second=60
+3d/default_gravity=18.0
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
+anti_aliasing/quality/msaa_3d=1
+lights_and_shadows/directional_shadow/size=2048
+lights_and_shadows/directional_shadow/size.mobile=2048
+environment/defaults/default_clear_color=Color(0.05, 0.06, 0.07, 1)
