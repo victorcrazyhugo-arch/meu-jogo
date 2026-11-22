@@ -556,8 +556,7 @@ func _draw() -> void:
 			draw_arc(c, r, 0, TAU, 36, C_LINE, 2.0, true)
 			var fs := int(clampf(r * 0.36, 11.0, 19.0))
 			var lab := String(b["label"])
-			if lab.length() > 9:
-				fs = int(fs * 0.82)
+			fs = int(minf(fs, r * 3.1 / maxf(4.0, float(lab.length()))))
 			_txt(c + Vector2(0, fs * 0.36), lab, fs)
 	# ---- municao / arma
 	if p.vehicle == null:

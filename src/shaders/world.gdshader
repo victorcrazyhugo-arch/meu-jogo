@@ -25,7 +25,7 @@ void fragment() {
 	float n2 = texture(noise_tex, uv * 0.033 + vec2(0.37, 0.11)).r;
 	// no renderizador Compatibility a cor do vertice ja chega convertida para o espaco linear
 	vec3 col = COLOR.rgb;
-	float m = mix(1.0, (0.86 + 0.24 * n1) * (0.90 + 0.18 * n2), detail);
+	float m = mix(1.0, (0.91 + 0.15 * n1) * (0.94 + 0.10 * n2), detail);
 	ALBEDO = col * m;
 	ROUGHNESS = 0.95;
 }

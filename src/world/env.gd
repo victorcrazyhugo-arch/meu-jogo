@@ -232,14 +232,14 @@ func _update_sky(_dt: float) -> void:
 	var sun_col := Color(1.0, 0.96, 0.88).lerp(Color(1.0, 0.62, 0.36), golden * 0.8)
 	if night:
 		sun.light_color = Color(0.55, 0.65, 0.95)
-		sun.light_energy = 0.16 * (1.0 - cloud * 0.6)
+		sun.light_energy = 0.34 * (1.0 - cloud * 0.5)
 	else:
 		sun.light_color = sun_col
-		sun.light_energy = (0.25 + 1.15 * dl) * (1.0 - cloud * 0.72) * (1.0 - fog * 0.4)
+		sun.light_energy = (0.22 + 0.95 * dl) * (1.0 - cloud * 0.68) * (1.0 - fog * 0.4)
 	sun.light_energy += flash * 2.0
 	# ambiente mais neutro (interiores nao ficam azulados) e nuvens conforme o clima
-	env.ambient_light_color = hor.lerp(top, 0.3).lerp(Color(0.86, 0.86, 0.84), 0.55 if not night else 0.2)
-	env.ambient_light_energy = lerpf(0.30, 0.78, dl) + flash
+	env.ambient_light_color = hor.lerp(top, 0.3).lerp(Color(0.86, 0.86, 0.84), 0.55) if not night else Color(0.42, 0.50, 0.68)
+	env.ambient_light_energy = lerpf(0.50, 0.64, dl) + flash
 	var cl := clampf(0.28 + cloud * 0.6, 0.0, 1.0) * (0.12 + 0.88 * dl)
 	sky_mat.sky_cover_modulate = Color(cl, cl, cl * 1.02, 1.0).lerp(Color(cl, cl * 0.72, cl * 0.5, 1.0), golden * 0.6)
 	# neblina (a "bruma" tambem esconde o limite de carregamento do mapa)

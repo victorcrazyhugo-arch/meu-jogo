@@ -319,7 +319,9 @@ func _update_camera(dt: float) -> void:
 	var want_dist := float(s["cam_dist"])
 	var want_off := 0.32
 	if indoors:
-		want_dist = minf(want_dist, 2.5)
+		want_dist = minf(want_dist, 2.3)
+		want_off = 0.5
+		head_h += 0.06
 	if vehicle != null:
 		want_dist = 7.5
 		want_off = 0.0
@@ -351,6 +353,9 @@ func _update_camera(dt: float) -> void:
 	arm.rotation = Vector3(pitch + rc, 0, 0)
 	cam_rig.rotation = Vector3(0, yaw, 0)
 	arm.spring_length = _dist
+	# camera encostada no personagem (comodos apertados): oculta o corpo para nao tapar a visao
+	var hit_len := arm.get_hit_length()
+	hum.visible = (hit_len > 0.8 or vehicle != null) and not (sv.dead and dead_handled)
 	var fov := float(s["cam_fov"]) - 14.0 * aim_w
 	if sprinting and hum.speed > 4.5:
 		fov += 4.0

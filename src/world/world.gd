@@ -103,8 +103,8 @@ func _make_tree_meshes() -> void:
 	m.tube(0, 0, 0.45, 3.2, Vector2(0.21, 0.21), Vector2(0.12, 0.12), bark, 8, false, false)
 	var g := Color(0.10, 0.26, 0.15)
 	for i in 6:
-		var y0 := 1.4 + i * 0.98
-		var r0 := 2.05 - i * 0.29
+		var y0 := 1.9 + i * 0.9
+		var r0 := 1.85 - i * 0.26
 		var gc := g.lightened(0.035 * i) if i % 2 == 0 else g.darkened(0.1)
 		m.tube(0, 0, y0, y0 + 1.55, Vector2(r0, r0), Vector2(r0 * 0.16, r0 * 0.16), gc, 10, true, false)
 	m.tube(0, 0, 7.1, 8.1, Vector2(0.36, 0.36), Vector2(0.01, 0.01), g.lightened(0.16), 6, true, false)

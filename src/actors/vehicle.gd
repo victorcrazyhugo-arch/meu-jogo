@@ -66,10 +66,11 @@ const SPECS := {
 		"yb": 0.32, "belt": 1.04, "roof": 2.04, "ws": -2.04, "rf": -1.58, "rr": -0.80, "rw": -0.80, "tuck": 0.035, "seat": Vector3(-0.44, 0.26, -1.18)},
 }
 
-## 12 cores de carroceria (sRGB) com nome no masculino/feminino e peso de sorteio.
-const COLORS := [Color(0.90, 0.90, 0.87), Color(0.63, 0.65, 0.67), Color(0.34, 0.36, 0.38), Color(0.08, 0.08, 0.09),
-	Color(0.70, 0.11, 0.10), Color(0.40, 0.08, 0.13), Color(0.15, 0.32, 0.64), Color(0.09, 0.14, 0.32),
-	Color(0.14, 0.38, 0.24), Color(0.74, 0.67, 0.50), Color(0.87, 0.70, 0.13), Color(0.82, 0.40, 0.11)]
+## 12 cores de carroceria com nome no masculino/feminino e peso de sorteio. Os valores sao
+## moderados porque a luz do sol do jogo clareia bastante as faces de cima.
+const COLORS := [Color(0.80, 0.80, 0.78), Color(0.53, 0.55, 0.57), Color(0.29, 0.31, 0.33), Color(0.07, 0.07, 0.08),
+	Color(0.62, 0.10, 0.09), Color(0.36, 0.07, 0.12), Color(0.13, 0.28, 0.58), Color(0.08, 0.12, 0.29),
+	Color(0.12, 0.34, 0.21), Color(0.63, 0.57, 0.42), Color(0.78, 0.62, 0.11), Color(0.74, 0.35, 0.09)]
 const COLOR_NAMES := [["branco", "branca"], ["prata", "prata"], ["cinza", "cinza"], ["preto", "preta"],
 	["vermelho", "vermelha"], ["vinho", "vinho"], ["azul", "azul"], ["azul-marinho", "azul-marinho"],
 	["verde", "verde"], ["bege", "bege"], ["amarelo", "amarela"], ["laranja", "laranja"]]
@@ -458,8 +459,8 @@ static func _body_mesh(vtype: String, ci: int) -> ArrayMesh:
 		_paint = StandardMaterial3D.new()
 		_paint.vertex_color_use_as_albedo = true
 		_paint.vertex_color_is_srgb = true
-		_paint.roughness = 0.42
-		_paint.metallic_specular = 0.5
+		_paint.roughness = 0.5
+		_paint.metallic_specular = 0.4
 	var col: Color = COLORS[clampi(ci, 0, COLORS.size() - 1)]
 	var mbs := build_mbs(vtype, col)
 	var mesh: ArrayMesh = mbs[0].to_mesh(_paint)
@@ -618,7 +619,7 @@ static func build_mbs(vtype: String, col: Color) -> Array:
 			ty0 = ly - 0.24
 		_face_z(m, t0, t1, ty0, ty1, zbk, 1.0, Color(0.42, 0.05, 0.05))
 		_face_z(e, t0, t1, ty0, ty1, zbk + 0.004, 1.0, Color(1.0, 0.13, 0.08))
-		_face_z(b, t0, t1, ty0 - 0.02, ty1 + 0.02, zbk + 0.008, 1.0, Color(1.0, 0.32, 0.22))
+		_face_z(b, t0, t1, ty0 - 0.02, ty1 + 0.02, zbk + 0.008, 1.0, Color(1.0, 0.20, 0.13))
 	_face_z(m, -(hw - 0.50), hw - 0.50, ly - 0.07, ly + 0.05, zfr, -1.0, dark)
 	_face_z(m, -0.19, 0.19, yb + 0.05, yb + 0.17, -hl - 0.113, -1.0, Color(0.82, 0.82, 0.78))
 	_face_z(m, -0.19, 0.19, yb + 0.05, yb + 0.17, hl + 0.113, 1.0, Color(0.82, 0.82, 0.78))
@@ -1594,14 +1595,14 @@ func _refresh() -> void:
 	_rough = 0.0
 	match _surface():
 		"grass":
-			sg = 0.62
-			_roll_res = 1.2
-			_roll_v = 0.09
+			sg = 0.70
+			_roll_res = 0.75
+			_roll_v = 0.07
 			_rough = 1.0
 		"dirt":
-			sg = 0.80
-			_roll_res = 0.6
-			_roll_v = 0.035
+			sg = 0.85
+			_roll_res = 0.45
+			_roll_v = 0.03
 			_rough = 0.45
 	_grip = g * sg
 	_vt = float(spec["top"]) * 1.25 * cap * (0.75 + 0.25 * motor)
