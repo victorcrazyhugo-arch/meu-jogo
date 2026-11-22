@@ -98,8 +98,8 @@ func box6(ct: Vector3, size: Vector3, cols: Array, faces: int = 63) -> void:
 			box(ct, size, cols[i], bit)
 
 
-## Caixa com transformacao arbitraria.
-func box_t(t: Transform3D, size: Vector3, col: Color) -> void:
+## Caixa com transformacao arbitraria. faces: mesmos bits de box(), nos eixos locais.
+func box_t(t: Transform3D, size: Vector3, col: Color, faces: int = 63) -> void:
 	var hx := size.x * 0.5
 	var hy := size.y * 0.5
 	var hz := size.z * 0.5
@@ -107,12 +107,149 @@ func box_t(t: Transform3D, size: Vector3, col: Color) -> void:
 		t * Vector3(-hx, -hy, -hz), t * Vector3(hx, -hy, -hz), t * Vector3(hx, -hy, hz), t * Vector3(-hx, -hy, hz),
 		t * Vector3(-hx, hy, -hz), t * Vector3(hx, hy, -hz), t * Vector3(hx, hy, hz), t * Vector3(-hx, hy, hz)]
 	var b := t.basis
-	quad(p[4], p[5], p[6], p[7], (b * Vector3.UP).normalized(), col)
-	quad(p[3], p[2], p[1], p[0], (b * Vector3.DOWN).normalized(), col)
-	quad(p[7], p[6], p[2], p[3], (b * Vector3.BACK).normalized(), col)
-	quad(p[5], p[4], p[0], p[1], (b * Vector3.FORWARD).normalized(), col)
-	quad(p[6], p[5], p[1], p[2], (b * Vector3.RIGHT).normalized(), col)
-	quad(p[4], p[7], p[3], p[0], (b * Vector3.LEFT).normalized(), col)
+	if faces & 1:
+		quad(p[4], p[5], p[6], p[7], (b * Vector3.UP).normalized(), col)
+	if faces & 2:
+		quad(p[3], p[2], p[1], p[0], (b * Vector3.DOWN).normalized(), col)
+	if faces & 4:
+		quad(p[7], p[6], p[2], p[3], (b * Vector3.BACK).normalized(), col)
+	if faces & 8:
+		quad(p[5], p[4], p[0], p[1], (b * Vector3.FORWARD).normalized(), col)
+	if faces & 16:
+		quad(p[6], p[5], p[1], p[2], (b * Vector3.RIGHT).normalized(), col)
+	if faces & 32:
+		quad(p[4], p[7], p[3], p[0], (b * Vector3.LEFT).normalized(), col)
+
+
+## Caixa arredondada (superelipsoide) com normais suaves: almofadas, estofados, travesseiros.
+## e: 0.2 = quase caixa, 1.0 = elipsoide.
+func rbox(t: Transform3D, size: Vector3, col: Color, e: float = 0.4, segs: int = 12, rings: int = 6) -> void:
+	var base := v.size()
+	var h := size * 0.5
+	var nb := t.basis
+	for j in rings + 1:
+		var ph := PI * 0.5 - PI * float(j) / rings
+		var cp := cos(ph)
+		var sp := sin(ph)
+		if j == 0 or j == rings:
+			cp = 0.0
+		var cpe := pow(absf(cp), e)
+		var spe := signf(sp) * pow(absf(sp), e)
+		var cpn := pow(absf(cp), 2.0 - e)
+		var spn := signf(sp) * pow(absf(sp), 2.0 - e)
+		for i in segs:
+			var th := TAU * float(i) / segs
+			var ct := cos(th)
+			var st := sin(th)
+			if absf(ct) < 0.0001:
+				ct = 0.0
+			if absf(st) < 0.0001:
+				st = 0.0
+			var cte := signf(ct) * pow(absf(ct), e)
+			var ste := signf(st) * pow(absf(st), e)
+			var ctn := signf(ct) * pow(absf(ct), 2.0 - e)
+			var stn := signf(st) * pow(absf(st), 2.0 - e)
+			v.append(t * Vector3(h.x * cpe * cte, h.y * spe, h.z * cpe * ste))
+			var nn := Vector3(cpn * ctn / h.x, spn / h.y, cpn * stn / h.z)
+			if nn.length_squared() < 0.000001:
+				nn = Vector3(0, signf(sp), 0)
+			n.append((nb * nn).normalized())
+			c.append(_mc(col))
+	if use_bones:
+		_skin((rings + 1) * segs)
+	for j in rings:
+		for i in segs:
+			var i2 := (i + 1) % segs
+			var t0 := base + j * segs + i
+			var t1 := base + j * segs + i2
+			var b0 := base + (j + 1) * segs + i
+			var b1 := base + (j + 1) * segs + i2
+			ix.append(t0); ix.append(b0); ix.append(b1)
+			ix.append(t0); ix.append(b1); ix.append(t1)
+
+
+static func _ring_at(rings: Array, f: float) -> Array:
+	var last := rings.size() - 1
+	var i := clampi(int(floor(f)), 0, last - 1)
+	var w := clampf(f - i, 0.0, 1.0)
+	var a: Array = rings[i]
+	var b: Array = rings[i + 1]
+	var p0: Array = rings[maxi(i - 1, 0)]
+	var p1: Array = rings[mini(i + 2, last)]
+	var o := [lerpf(a[0], b[0], w)]
+	for k in [1, 2, 3, 4]:
+		o.append(cubic_interpolate(float(a[k]), float(b[k]), float(p0[k]), float(p1[k]), w))
+	o.append(lerpf(a[5], b[5], w))
+	return o
+
+
+## Perfil organico: varias secoes elipticas ao longo de Y com normais suaves (tronco e membros).
+## rings, de baixo para cima: [y, rx, rz, ox, oz, w2]; ox/oz deslocam a secao e w2 e o peso do
+## osso bone2 naquela altura (articulacoes que dobram sem abrir frestas).
+func prof(cx: float, cz: float, rings: Array, col: Color, sides: int = 12, cap_bottom: bool = false, cap_top: bool = false,
+		bands: int = 1, col2: Color = Color.WHITE, checker: bool = false, bone2: int = -1) -> void:
+	var last := rings.size() - 1
+	var smp: Array = []
+	var nseg := last * 2
+	if bands > 1:
+		nseg = bands * 2
+		var ya: float = rings[0][0]
+		var yb: float = rings[last][0]
+		for i in nseg + 1:
+			var y := lerpf(ya, yb, float(i) / nseg)
+			var f := float(last)
+			for k in last:
+				if y <= float(rings[k + 1][0]) + 0.00001:
+					f = k + clampf((y - float(rings[k][0])) / maxf(float(rings[k + 1][0]) - float(rings[k][0]), 0.0001), 0.0, 1.0)
+					break
+			var r := _ring_at(rings, f)
+			r[0] = y
+			smp.append(r)
+	else:
+		for i in nseg + 1:
+			smp.append(_ring_at(rings, float(i) * 0.5))
+	var slope := PackedFloat32Array()
+	for i in nseg + 1:
+		var a: Array = smp[maxi(i - 1, 0)]
+		var b: Array = smp[mini(i + 1, nseg)]
+		slope.append(((float(b[1]) + float(b[2])) - (float(a[1]) + float(a[2]))) * 0.5 / maxf(float(b[0]) - float(a[0]), 0.0001))
+	for sg in nseg:
+		var band := (sg * bands) / nseg if bands > 1 else 0
+		var base := v.size()
+		var reps := 2 if checker else 1      # no xadrez cada face tem vertices proprios
+		for e in 2:
+			var si := sg + 1 - e          # primeiro o anel de cima
+			var r: Array = smp[si]
+			for i in sides:
+				for q in reps:
+					var th := TAU * float(i + q) / sides
+					var ct := cos(th)
+					var st := sin(th)
+					v.append(Vector3(cx + float(r[3]) + float(r[1]) * ct, r[0], cz + float(r[4]) + float(r[2]) * st))
+					var nx := Vector2(ct / maxf(float(r[1]), 0.001), st / maxf(float(r[2]), 0.001)).normalized()
+					n.append(Vector3(nx.x, -slope[si], nx.y).normalized())
+					var cc := col if band % 2 == 0 else col2
+					if checker and (band + i) % 2 == 1:
+						cc = col2 if band % 2 == 0 else col
+					c.append(_mc(cc))
+					if use_bones:
+						var w: float = float(r[5]) if bone2 >= 0 else 0.0
+						bones.append(bone); bones.append(bone2 if w > 0.0 else 0); bones.append(0); bones.append(0)
+						weights.append(1.0 - w); weights.append(w); weights.append(0.0); weights.append(0.0)
+		var per := sides * reps
+		for i in sides:
+			var t0 := base + i * reps
+			var t1 := base + (i * reps + 1 if checker else ((i + 1) % sides))
+			var b0 := t0 + per
+			var b1 := t1 + per
+			ix.append(t0); ix.append(b0); ix.append(b1)
+			ix.append(t0); ix.append(b1); ix.append(t1)
+	if cap_bottom:
+		var r0: Array = smp[0]
+		_cap(cx + float(r0[3]), cz + float(r0[4]), r0[0], Vector2(r0[1], r0[2]), col, sides, false)
+	if cap_top:
+		var r1: Array = smp[nseg]
+		_cap(cx + float(r1[3]), cz + float(r1[4]), r1[0], Vector2(r1[1], r1[2]), col if ((bands - 1) % 2 == 0 or bands <= 1) else col2, sides, true)
 
 
 ## Tubo eliptico afunilado ao longo de Y, de y0 (base) a y1 (topo), com faixas opcionais de cor.

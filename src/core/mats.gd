@@ -37,8 +37,11 @@ static func init() -> void:
 	world = ShaderMaterial.new()
 	world.shader = sh
 	world.set_shader_parameter("noise_tex", noise)
+	# folhagem: mesma logica, com recorte das folhas na silhueta das copas
+	var sh3 := Shader.new()
+	sh3.code = sh.code.replace("// @CUT ", "")
 	foliage = ShaderMaterial.new()
-	foliage.shader = sh
+	foliage.shader = sh3
 	foliage.set_shader_parameter("noise_tex", noise)
 	foliage.set_shader_parameter("sway", 1.0)
 	foliage.set_shader_parameter("leafy", true)
@@ -55,7 +58,7 @@ static func init() -> void:
 	grass.set_shader_parameter("noise_tex", noise)
 	grass.set_shader_parameter("sway", 2.2)
 	grass.set_shader_parameter("detail", 0.4)
-	grass.set_shader_parameter("leafy", true)
+	grass.set_shader_parameter("blade", true)
 	grass.set_shader_parameter("bump", 0.0)
 	# poca de luz dos postes (aditiva)
 	pool = StandardMaterial3D.new()

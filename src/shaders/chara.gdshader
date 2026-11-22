@@ -22,6 +22,18 @@ void fragment() {
 		// pele: lisa, com leve variacao de tom e calor nas bordas
 		col *= (0.95 + 0.07 * n2) * (0.98 + 0.03 * n3);
 		col = mix(col, col * vec3(1.10, 0.90, 0.86), rim * 0.5);
+		if (COLOR.a < 0.15) {
+			// pelos do corpo: fios curtos em manchas de densidade variada
+			float hs = texture(noise_tex, vec2((rp.x + rp.z * 0.8) * 62.0, rp.y * 11.0)).r;
+			float hs2 = texture(noise_tex, vec2((rp.x - rp.z) * 41.0 + 0.3, rp.y * 17.0)).r;
+			float hd = texture(noise_tex, rp.xy * 2.6 + rp.z * 1.3).r;
+			// mais densos no centro do peito e da barriga, nos antebracos e nas pernas
+			float chest = smoothstep(0.17, 0.03, abs(rp.x)) * smoothstep(1.02, 1.16, rp.y) * smoothstep(0.03, -0.03, rp.z);
+			float limbs = max(step(rp.y, 0.9), step(0.17, abs(rp.x))) * 0.75;
+			float dens = max(chest, limbs) * smoothstep(0.34, 0.52, hd);
+			float hair = max(smoothstep(0.47, 0.58, hs), smoothstep(0.49, 0.60, hs2)) * dens;
+			col = mix(col, col * vec3(0.46, 0.36, 0.29), hair * 0.72);
+		}
 		ROUGHNESS = 0.58;
 		SPECULAR = 0.30;
 		EMISSION = col * vec3(1.0, 0.72, 0.62) * rim * 0.20;

@@ -1278,11 +1278,16 @@ func _parts(m: MB, t: Transform3D, rot: int, list: Array) -> void:
 ## Malha interna: moveis, decoracao e cortinas (carregada com alcance de visibilidade).
 func build_interior() -> MB:
 	var m := MB.new()
+	# moveis detalhados nos perfis graficos medio e alto (vale ao recarregar a regiao)
+	var detail := int(G.settings.get("graphics", 1)) >= 1
 	for fu in furn:
 		if fu.get("gone", false):
 			continue
 		var t := Transform3D(furn_basis(fu["rot"]), Vector3(fu["x"], fu["f"] * FH + 0.06, fu["z"]))
-		_parts(m, t, fu["rot"], FURN[fu["id"]]["b"])
+		if detail and FurnDetail.has(fu["id"]):
+			FurnDetail.build(m, t, fu["id"], self, G.hash2(int(fu["x"] * 2.0) + id * 31, int(fu["z"] * 2.0) + int(fu["f"]) * 977, 77))
+		else:
+			_parts(m, t, fu["rot"], FURN[fu["id"]]["b"])
 	for dc in decor:
 		var y0: float = dc["f"] * FH
 		var t2 := Transform3D(furn_basis(dc["rot"]), Vector3(dc["x"], y0 + 0.06, dc["z"]))

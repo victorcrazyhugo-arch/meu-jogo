@@ -7,13 +7,13 @@ Todas as horas são de 22 de novembro de 2026 (UTC). **As horas realizadas vêm 
 | | Horas |
 |---|---:|
 | Orçamento previsto no documento | 100 |
-| Trabalho efetivo realizado nesta sessão (linha principal) | ~2,5 |
+| Trabalho efetivo realizado nesta sessão (linha principal) | ~3,4 |
 | Trabalho paralelo de agentes auxiliares (áudio e veículos) | ~1,3 |
-| **Esforço total realizado** | **~3,8** |
-| Tempo corrido da sessão, do início à entrega da 0.1.2 | ~4,7 |
-| Tempo de espera sem trabalho (sessão interrompida entre ~14:20 e ~16:35) | ~2,2 |
+| **Esforço total realizado** | **~4,7** |
+| Tempo corrido da sessão, do início à entrega da 0.1.3 | ~9,0 |
+| Tempo sem trabalho (sessão interrompida entre ~14:20 e ~16:35; esperas entre 17:52 e 19:31 e entre 19:55 e 21:34) | ~5,5 |
 
-O ciclo de 100 horas **não** foi cumprido: foram gastas cerca de 3,8. A versão 0.1.2 é o que coube nesse esforço. As cerca de 96 horas restantes do orçamento continuam disponíveis para as pendências de `PENDENCIAS.md`.
+O ciclo de 100 horas **não** foi cumprido: foram gastas cerca de 4,7. A versão 0.1.3 é o que coube nesse esforço. As cerca de 95 horas restantes do orçamento continuam disponíveis para as pendências de `PENDENCIAS.md`.
 
 ## Linha do tempo
 
@@ -28,6 +28,10 @@ O ciclo de 100 horas **não** foi cumprido: foram gastas cerca de 3,8. A versão
 | 17:02–17:12 | Testes de jogo e de veículos; correções; exportação e entrega do APK 0.1.0. |
 | 17:12–17:25 | Otimização dos zumbis distantes, testes de salvamento e morte (um defeito corrigido), medições, documentação, APK 0.1.1. |
 | 17:25–17:45 | Pedido de gráficos e texturas melhores: materiais procedurais por superfície, relevo, vidro com reflexo, pele e cabelo, portas e janelas detalhadas, ajuste de cor e exposição; novas capturas; testes refeitos; APK 0.1.2. |
+| 17:52–19:31 | Sem trabalho (aguardando retorno). |
+| 19:32–19:55 | Pedido de móveis, portas, grama e folhas mais detalhados: gerador de móveis (almofadas arredondadas, livros, portas almofadadas), portas novas com nível de detalhe por distância, capim alto, folhas individuais com recorte, veios de madeira e trama de tecido; capturas e testes. A sessão foi reiniciada antes da exportação; a versão 0.1.3 não chegou a ser entregue nesse momento. |
+| 19:55–21:34 | Sem trabalho (sessão reiniciada, aguardando). |
+| 21:34–22:05 | Pedido de novo modelo de personagem e de caminhada e corrida mais naturais: corpo refeito com perfis anatômicos e articulações com mistura de ossos, musculatura e pelos no corpo sem roupa, pés e mandíbula; ciclo de marcha com fases de apoio e balanço, movimento da bacia e suavização da velocidade; capturas, testes refeitos e APK 0.1.3. |
 
 ## Por etapa do cronograma do documento
 
@@ -44,7 +48,9 @@ O ciclo de 100 horas **não** foi cumprido: foram gastas cerca de 3,8. A versão
 | Desempenho, controles, colisões, falhas críticas | 10 | 0,3 | Medições de carga por cena; nada medido em celular |
 | Compilação, testes finais, prints, relatório | 4 | 0,4 | APK, 48 verificações, capturas e documentação |
 | Melhoria gráfica pedida depois da entrega (materiais procedurais) | — | 0,3 | Versão 0.1.2 |
-| **Total** | **100** | **~3,8** | Primeira versão jogável |
+| Móveis, portas, grama e folhagem detalhados (pedido posterior) | — | 0,4 | Versão 0.1.3 |
+| Novo corpo do personagem e ciclo de marcha (pedido posterior) | — | 0,5 | Versão 0.1.3 |
+| **Total** | **100** | **~4,7** | Primeira versão jogável |
 
 ## Revisão de viabilidade
 

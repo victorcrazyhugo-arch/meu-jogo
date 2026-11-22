@@ -54,6 +54,7 @@ var tired := 0.0
 var lod_skip := 0
 
 var phase := 0.0
+var _spd := 0.0
 var _ang: Array[Vector3] = []
 var _tgt: Array[Vector3] = []
 var _hip := Vector3.ZERO
@@ -141,6 +142,11 @@ static func build_arrays(L: Dictionary) -> MB:
 	hairc.a = 0.4
 	var bw: float = L.get("build", 1.0)
 	var fem: bool = L.get("female", false)
+	# pelos do corpo (peito, antebracos e pernas): alfa 0.1 no shader dos personagens
+	var skin_h := skin
+	if not fem and L.get("body_hair", int(L.get("seed", 1)) % 2 == 0):
+		skin_h.a = 0.1
+	var under := Color(0.30, 0.30, 0.34)
 	var dirt: float = L.get("dirt", 0.0)
 	var bld: float = L.get("blood", 0.0)
 	var top: Dictionary = L.get("top", {})
@@ -199,7 +205,11 @@ static func build_arrays(L: Dictionary) -> MB:
 	elif bot.get("tight", false):
 		lbulk = -0.004
 	m.bone = B_HIPS
-	m.tube(0, 0, 0.86, 1.04, Vector2(hp, dp) + Vector2(0.006, 0.006), Vector2(hp, dp), legc if (bs == 1 or bs == 2) else Color(0.28, 0.28, 0.32), 14, true, false)
+	var hipc: Color = legc if (bs == 1 or bs == 2) else under
+	m.prof(0, 0, [[0.83, hp * 0.55, dp * 0.80, 0, 0.004, 0.0], [0.88, hp + 0.004, dp + 0.008, 0, 0.008, 0.0], [0.95, hp + 0.006, dp + 0.010, 0, 0.008, 0.0],
+		[1.00, hp + 0.001, dp + 0.003, 0, 0.002, 0.0], [1.045, hp * 0.95, dp, 0, 0, 0.5]], hipc, 14, true, false, 1, Color.WHITE, false, B_SPINE)
+	for gx in [-1.0, 1.0]:
+		m.ellipsoid(Vector3(gx * hp * 0.48, 0.925, dp * 0.62), Vector3(hp * 0.52, 0.078, dp * 0.62), hipc, 8, 5)
 	if bs == 3:
 		var sk_y: float = bot.get("len", 0.5)
 		var flare := 0.04 + (0.98 - sk_y) * 0.12
@@ -221,8 +231,10 @@ static func build_arrays(L: Dictionary) -> MB:
 			thigh = skin
 			shin = skin
 		m.bone = B_LEG_L if side == 0 else B_LEG_R
-		var tr := 0.083 * (0.92 + (bw - 1.0) * 1.2) + lbulk
-		m.tube(sx, 0, 0.47, 0.93, Vector2(0.060 + lbulk, 0.062 + lbulk), Vector2(tr, tr + 0.004), thigh, 12, false, true)
+		var tr := 0.091 * (0.92 + (bw - 1.0) * 1.2) + lbulk
+		m.prof(sx, 0, [[0.47, 0.058 + lbulk, 0.061 + lbulk, 0, 0, 0.5], [0.52, 0.060 + lbulk, 0.064 + lbulk, 0, 0, 0.15], [0.62, tr * 0.86, tr * 0.90, 0, -0.003, 0.0],
+			[0.76, tr * 0.99, tr * 1.04, 0, -0.004, 0.0], [0.87, tr * 1.03, tr * 1.06, 0, 0, 0.0], [0.94, tr * 0.98, tr, 0, 0, 0.0]],
+			skin_h if thigh == skin else thigh, 12, false, true, 1, Color.WHITE, false, B_SHIN_L if side == 0 else B_SHIN_R)
 		if bs == 2:
 			var sy: float = bot.get("len", 0.66)
 			m.tube(sx, 0, sy, 0.93, Vector2(tr + 0.004, tr + 0.008), Vector2(tr + 0.006, tr + 0.01), bc, 12, true, false)
@@ -235,8 +247,10 @@ static func build_arrays(L: Dictionary) -> MB:
 		if bot.get("cargo", false) and bs >= 1:
 			m.box(Vector3(sx + osx * (tr + 0.004), 0.68, 0.0), Vector3(0.03, 0.12, 0.10), bc.darkened(0.14))
 		m.bone = B_SHIN_L if side == 0 else B_SHIN_R
-		m.ellipsoid(Vector3(sx, 0.47, -0.004), Vector3(0.060 + lbulk, 0.058, 0.064 + lbulk), legc if bs == 1 else skin, 12, 6)
-		m.tube(sx, 0, 0.09, 0.47, Vector2(0.043 + lbulk, 0.046 + lbulk), Vector2(0.058 + lbulk, 0.060 + lbulk), shin, 12, false, false)
+		m.ellipsoid(Vector3(sx, 0.47, -0.002), Vector3(0.054 + lbulk, 0.05, 0.057 + lbulk), legc if bs == 1 else skin, 10, 6)
+		m.prof(sx, 0, [[0.085, 0.040 + lbulk, 0.045 + lbulk, 0, 0, 0.0], [0.16, 0.040 + lbulk, 0.044 + lbulk, 0, 0.002, 0.0], [0.27, 0.052 + lbulk, 0.059 + lbulk, 0, 0.009, 0.0],
+			[0.36, 0.061 + lbulk, 0.069 + lbulk, 0, 0.011, 0.0], [0.43, 0.057 + lbulk, 0.061 + lbulk, 0, 0.003, 0.2], [0.47, 0.058 + lbulk, 0.061 + lbulk, 0, 0, 0.5]],
+			skin_h if shin == skin else shin, 12, false, false, 1, Color.WHITE, false, B_LEG_L if side == 0 else B_LEG_R)
 		if bs == 1:
 			if bot.get("pat", 0) == 1:
 				m.box(Vector3(sx + osx * 0.052, 0.28, 0), Vector3(0.012, 0.38, 0.03), bc2)
@@ -246,7 +260,11 @@ static func build_arrays(L: Dictionary) -> MB:
 				m.box(Vector3(sx, 0.46, -0.058), Vector3(0.08, 0.1, 0.03), bc.darkened(0.3))
 		var sst: int = shoes.get("style", 0)
 		if sst == 0:
-			m.box(Vector3(sx, 0.045, -0.045), Vector3(0.085, 0.08, 0.23), skin)
+			m.rbox(Transform3D(Basis.IDENTITY, Vector3(sx, 0.044, -0.03)), Vector3(0.086, 0.088, 0.19), skin, 0.6, 10, 4)
+			m.rbox(Transform3D(Basis.IDENTITY, Vector3(sx, 0.026, -0.125)), Vector3(0.094, 0.05, 0.11), skin, 0.6, 10, 4)
+			for tg in 5:
+				var tw := 0.021 if tg == 0 else 0.015
+				m.rbox(Transform3D(Basis.IDENTITY, Vector3(sx - osx * (0.034 - tg * 0.0175), 0.018, -0.188 + tg * 0.007)), Vector3(tw, 0.024, 0.036), skin.darkened(0.03), 0.7, 6, 4)
 		elif sst == 4:
 			m.box(Vector3(sx, 0.05, -0.045), Vector3(0.082, 0.07, 0.22), skin)
 			m.box(Vector3(sx, 0.012, -0.05), Vector3(0.10, 0.024, 0.26), sc)
@@ -263,7 +281,7 @@ static func build_arrays(L: Dictionary) -> MB:
 				m.box(Vector3(sx, 0.012, -0.05), Vector3(0.104, 0.026, 0.27), sole)
 			if sst == 2:
 				var shaft := 0.40 if shoes.get("tall", false) else 0.28
-				m.tube(sx, 0, 0.09, shaft, Vector2(0.052, 0.055), Vector2(0.058 + lbulk, 0.060 + lbulk), sc, 12, false, true)
+				m.prof(sx, 0, [[0.09, 0.052, 0.056, 0, 0, 0.0], [(0.09 + shaft) * 0.5, 0.058 + lbulk, 0.064 + lbulk, 0, 0.006, 0.0], [shaft, 0.064 + lbulk, 0.072 + lbulk, 0, 0.009, 0.0]], sc, 12, false, true)
 
 	# ---------------- tronco
 	m.bone = B_SPINE
@@ -292,12 +310,34 @@ static func build_arrays(L: Dictionary) -> MB:
 		elif tpat == 3:
 			bands = 7
 			checker = true
+	var bare := os == 0 and not has_top
+	if bare:
+		body_c = skin_h
+		body_c2 = skin_h
+	var tr_lo := [[1.03, wst.x, wst.y, 0, 0, 0.5], [1.10, wst.x * 0.975, wst.y * 0.98, 0, 0, 0.1], [1.20, lerpf(wst.x, chs.x, 0.45), lerpf(wst.y, chs.y, 0.5), 0, 0, 0.0], [1.30, chs.x, chs.y, 0, 0, 0.0]]
+	var tr_hi := [[1.30, chs.x, chs.y, 0, 0, 0.0], [1.38, chs.x * 1.01, chs.y * 0.99, 0, 0, 0.0], [1.445, chs.x * 0.985, lerpf(chs.y, shd.y, 0.6), 0, 0, 0.0],
+		[1.485, maxf(shd.x, chs.x * 0.88), shd.y, 0, 0, 0.0], [1.512, chs.x * 0.42, shd.y * 0.70, 0, 0, 0.0]]
 	if split:
-		m.tube(0, 0, 1.03, 1.30, wst, chs, body_c, 14, false, false)
-		m.tube(0, 0, 1.30, 1.485, chs, shd, body_c2, 14, false, true)
+		m.prof(0, 0, tr_lo, body_c, 14, false, false, 1, Color.WHITE, false, B_HIPS)
+		m.prof(0, 0, tr_hi, body_c2, 14, false, true)
 	else:
-		m.tube(0, 0, 1.03, 1.30, wst, chs, body_c, 14, false, false, bands, body_c2, checker)
-		m.tube(0, 0, 1.30, 1.485, chs, shd, body_c if bands % 2 == 1 else body_c2, 14, false, true, 1 if not checker else 4, body_c2 if bands % 2 == 1 else body_c, checker)
+		m.prof(0, 0, tr_lo, body_c, 14, false, false, bands, body_c2, checker, B_HIPS)
+		m.prof(0, 0, tr_hi, body_c if bands % 2 == 1 else body_c2, 14, false, true, 1 if not checker else 4, body_c2 if bands % 2 == 1 else body_c, checker)
+	if bare:
+		# torso nu: peitoral, umbigo e linha central
+		if fem:
+			m.prof(0, 0, [[1.285, chs.x + 0.003, chs.y + 0.003, 0, 0, 0.0], [1.34, chs.x + 0.004, chs.y + 0.010, 0, -0.006, 0.0], [1.40, chs.x + 0.006, chs.y + 0.004, 0, 0, 0.0]], under, 14, false, false)
+		else:
+			for px in [-1.0, 1.0]:
+				m.ellipsoid(Vector3(px * sh * 0.44, 1.35, -(chs.y - 0.024)), Vector3(sh * 0.45, 0.064, 0.042), skin_h, 10, 6)
+				# abdomen em tres pares, trapezio, escapulas e dorsais
+				for ab in 3:
+					m.ellipsoid(Vector3(px * 0.034, 1.245 - ab * 0.062, -(lerpf(wst.y, chs.y, 0.62 - ab * 0.2) - 0.012)), Vector3(0.031, 0.029, 0.018), skin_h, 7, 4)
+				m.ellipsoid(Vector3(px * 0.082, 1.488, 0.012), Vector3(0.075, 0.034, 0.05), skin, 8, 4)
+				m.ellipsoid(Vector3(px * 0.076, 1.37, chs.y - 0.03), Vector3(0.066, 0.085, 0.028), skin, 8, 5)
+			m.box(Vector3(0, 1.28, chs.y - 0.004), Vector3(0.008, 0.34, 0.004), skin.darkened(0.12))
+		m.box(Vector3(0, 1.105, -(wst.y * 0.985)), Vector3(0.013, 0.017, 0.004), skin.darkened(0.32))
+		m.box(Vector3(0, 1.19, -(lerpf(wst.y, chs.y, 0.45) - 0.0005)), Vector3(0.006, 0.13, 0.002), skin.darkened(0.10))
 	var front := -(dp + bulk + 0.006)
 	if os == 0 and has_top:
 		if tpat == 4:
@@ -379,19 +419,22 @@ static func build_arrays(L: Dictionary) -> MB:
 		sleeve_bands = 4
 	for side in 2:
 		var sx := -0.215 if side == 0 else 0.215
-		var ar := 0.052 * (0.93 + (bw - 1.0) * 1.3) + bulk * 0.6
+		var ar := 0.057 * (0.93 + (bw - 1.0) * 1.3) + bulk * 0.6
 		m.bone = B_ARM_L if side == 0 else B_ARM_R
-		m.ellipsoid(Vector3(sx, 1.452, 0), Vector3(ar + 0.007, ar + 0.006, ar + 0.008), up_arm, 12, 6)
+		var fb: int = B_FARM_L if side == 0 else B_FARM_R
+		var ua := [[1.17, ar - 0.007, ar - 0.005, 0, 0, 0.5], [1.21, ar - 0.006, ar - 0.003, 0, 0, 0.12], [1.30, ar + 0.003, ar + 0.007, 0, -0.004, 0.0], [1.39, ar + 0.004, ar + 0.006, 0, 0, 0.0], [1.46, ar, ar, 0, 0, 0.0]]
+		m.ellipsoid(Vector3(sx - (0.006 if side == 1 else -0.006), 1.436, 0), Vector3(ar + 0.014, ar + 0.016, ar + 0.014), up_arm, 12, 6)
 		if sl == 1 and not jacket and has_top:
-			m.tube(sx, 0, 1.17, 1.46, Vector2(ar - 0.007, ar - 0.005), Vector2(ar, ar), skin, 12, false, false)
-			m.tube(sx, 0, 1.31, 1.46, Vector2(ar + 0.006, ar + 0.006), Vector2(ar + 0.004, ar + 0.004), tc, 12, true, false, 2 if sleeve_bands > 1 else 1, tc2)
+			m.prof(sx, 0, ua, skin, 12, false, false, 1, Color.WHITE, false, fb)
+			m.tube(sx, 0, 1.31, 1.46, Vector2(ar + 0.011, ar + 0.015), Vector2(ar + 0.010, ar + 0.012), tc, 12, true, false, 2 if sleeve_bands > 1 else 1, tc2)
 		else:
-			m.tube(sx, 0, 1.17, 1.46, Vector2(ar - 0.006, ar - 0.004), Vector2(ar, ar), up_arm, 12, false, false, sleeve_bands if up_arm != skin else 1, tc2)
+			m.prof(sx, 0, ua, up_arm, 12, false, false, sleeve_bands if up_arm != skin else 1, tc2, false, fb)
 		if jacket and opat == 2:
-			m.tube(sx, 0, 1.24, 1.27, Vector2(ar + 0.002, ar + 0.003), Vector2(ar + 0.002, ar + 0.003), refl, 12, false, false)
+			m.tube(sx, 0, 1.24, 1.27, Vector2(ar + 0.004, ar + 0.007), Vector2(ar + 0.004, ar + 0.007), refl, 12, false, false)
 		m.bone = B_FARM_L if side == 0 else B_FARM_R
-		m.ellipsoid(Vector3(sx, 1.17, 0), Vector3(ar - 0.004, ar - 0.002, ar - 0.002), lo_arm, 10, 5)
-		m.tube(sx, 0, 0.91, 1.17, Vector2(ar - 0.016, ar - 0.014), Vector2(ar - 0.006, ar - 0.004), lo_arm, 12, false, false, sleeve_bands if lo_arm != skin else 1, tc2)
+		m.ellipsoid(Vector3(sx, 1.17, 0), Vector3(ar - 0.011, ar - 0.010, ar - 0.009), lo_arm, 10, 5)
+		m.prof(sx, 0, [[0.91, ar - 0.022, ar - 0.014, 0, 0, 0.0], [0.98, ar - 0.016, ar - 0.011, 0, 0, 0.0], [1.08, ar - 0.002, ar + 0.002, 0, 0, 0.0], [1.14, ar - 0.003, ar - 0.001, 0, 0, 0.15], [1.17, ar - 0.006, ar - 0.004, 0, 0, 0.5]],
+			skin_h if lo_arm == skin else lo_arm, 12, false, false, sleeve_bands if lo_arm != skin else 1, tc2, false, B_ARM_L if side == 0 else B_ARM_R)
 		var hc: Color = gl if gl != null else skin
 		m.ellipsoid(Vector3(sx, 0.905, -0.004), Vector3(0.034, 0.03, 0.04), hc, 8, 4)
 		m.box(Vector3(sx, 0.862, -0.004), Vector3(0.04, 0.07, 0.076), hc)
@@ -401,10 +444,11 @@ static func build_arrays(L: Dictionary) -> MB:
 
 	# ---------------- pescoco e cabeca
 	m.bone = B_HEAD
-	m.tube(0, 0, 1.47, 1.57, Vector2(0.052, 0.054), Vector2(0.048, 0.05), skin, 12, false, false)
+	m.prof(0, 0, [[1.46, 0.068, 0.062, 0, 0.004, 0.7], [1.495, 0.059, 0.058, 0, 0.002, 0.4], [1.535, 0.054, 0.055, 0, 0, 0.0], [1.585, 0.052, 0.053, 0, 0, 0.0]], skin, 12, false, false, 1, Color.WHITE, false, B_SPINE)
 	var hc0 := Vector3(0, 1.665, -0.004)
 	var hr := Vector3(0.094, 0.122, 0.104)
 	m.ellipsoid(hc0, hr, skin, 16, 10)
+	m.rbox(Transform3D(Basis.IDENTITY, Vector3(0, 1.612, -0.016)), Vector3(0.150, 0.106, 0.150), skin, 0.62, 12, 6)
 	var eye := Color(0.08, 0.07, 0.07) if not is_z else Color(0.82, 0.8, 0.7)
 	var sclera := Color(0.93, 0.92, 0.88) if not is_z else Color(0.80, 0.76, 0.55)
 	var iris: Color = L.get("eyes", Color(0.22, 0.16, 0.1)) if not is_z else Color(0.62, 0.6, 0.55)
@@ -604,6 +648,12 @@ static func weapon_mesh(kind: String) -> ArrayMesh:
 # =====================================================================================
 #  ANIMACAO PROCEDURAL
 # =====================================================================================
+## Pulso suave em torno de um ponto do ciclo (fase em radianos, com volta completa).
+func _bump(p: float, center: float, width: float) -> float:
+	var d := wrapf(p - center, -PI, PI) / width
+	return exp(-d * d)
+
+
 func _ease(x: float) -> float:
 	x = clampf(x, 0.0, 1.0)
 	return x * x * (3.0 - 2.0 * x)
@@ -620,10 +670,12 @@ func animate(dt: float) -> void:
 	for i in NB:
 		T[i] = Vector3.ZERO
 	var sp := absf(speed)
-	var run := clampf((sp - 1.7) / 3.4, 0.0, 1.0)
-	var moving := clampf(sp / 0.7, 0.0, 1.0)
+	# a velocidade usada nas poses e suavizada: transicoes parado-andar-correr sem trancos
+	_spd = lerpf(_spd, sp, 1.0 - exp(-9.0 * dt))
+	var run := _ease(clampf((_spd - 1.9) / 3.0, 0.0, 1.0))
+	var moving := _ease(clampf(_spd / 0.9, 0.0, 1.0))
 	var cr := crouch
-	var stride := lerpf(1.35, 2.5, run) * (0.78 if cr > 0.5 else 1.0)
+	var stride := lerpf(1.42, 3.0, run) * (0.78 if cr > 0.5 else 1.0)
 	if zombie:
 		stride = lerpf(1.0, 2.2, run)
 	if sp > 0.05:
@@ -635,30 +687,47 @@ func animate(dt: float) -> void:
 			phase -= TAU * 64.0
 	var s := sin(phase)
 	var c := cos(phase)
-	var A := lerpf(0.44, 0.86, run) * moving
+	var A := lerpf(0.42, 0.80, run) * moving
 	var hip := Vector3.ZERO
 
-	# ---- locomocao
+	# ---- locomocao: ciclo de marcha com apoio e balanco
+	# pl = 0 no toque do calcanhar esquerdo; o joelho cede ao receber o peso e dobra no balanco
+	var pl := phase - PI * 0.5
+	var pr := pl + PI
 	var la := 1.0
 	var ra := 1.0 - 0.45 * limp
-	T[B_LEG_L].x = A * s * la
-	T[B_LEG_R].x = -A * s * ra
-	T[B_SHIN_L].x = -(0.06 + lerpf(0.6, 1.3, run) * maxf(0.0, c)) * moving
-	T[B_SHIN_R].x = -(0.06 + lerpf(0.6, 1.3, run) * maxf(0.0, -c)) * moving * ra
-	hip.y = -(0.018 + 0.03 * run) * absf(s) * moving
-	T[B_SPINE].x = -(0.05 + 0.24 * run) * moving - 0.08 * tired
-	T[B_SPINE].y = 0.10 * s * moving * (1.0 + run * 0.6)
-	T[B_SPINE].z = 0.03 * s * moving + 0.10 * limp * s
-	T[B_HEAD].y = -T[B_SPINE].y * 0.8
+	var kn_sw := lerpf(1.08, 1.95, run)
+	var kn_ld := lerpf(0.24, 0.50, run)
+	var th_off := lerpf(0.03, 0.17, run) * moving
+	T[B_LEG_L].x = (th_off + A * cos(pl) + 0.07 * A * sin(2.0 * pl)) * la
+	T[B_LEG_R].x = (th_off + A * cos(pr) + 0.07 * A * sin(2.0 * pr)) * ra
+	T[B_SHIN_L].x = -(0.05 + kn_sw * _bump(pl, 4.50, 0.92) + kn_ld * _bump(pl, 0.70, 0.62)) * moving
+	T[B_SHIN_R].x = -(0.05 + kn_sw * _bump(pr, 4.50, 0.92) + kn_ld * _bump(pr, 0.70, 0.62)) * moving * ra
+	# bacia: sobe e desce, desloca para a perna de apoio, gira com o passo e cai do lado do balanco
+	var s2 := s * s
+	hip.y = -lerpf(0.024 * s2, 0.05 * (1.0 - s2), run) * moving
+	hip.x = lerpf(0.020, 0.008, run) * c * moving
+	var pel_y := lerpf(0.09, 0.13, run) * s * moving
+	var pel_z := lerpf(0.045, 0.03, run) * c * moving
+	T[B_HIPS].y = -pel_y
+	T[B_HIPS].z = pel_z
+	T[B_SPINE].x = -(0.04 + 0.21 * run) * moving - 0.08 * tired + 0.014 * sin(2.0 * phase) * moving
+	T[B_SPINE].y = pel_y + lerpf(0.09, 0.17, run) * s * moving
+	T[B_SPINE].z = -pel_z * 0.75 + 0.10 * limp * s
+	T[B_HEAD].y = -(T[B_SPINE].y - pel_y) * 0.85
+	T[B_HEAD].z = -pel_z * 0.25
 	T[B_HEAD].x = -T[B_SPINE].x * 0.65 - 0.1 * tired
-	var arm_a := A * lerpf(0.75, 1.05, run)
-	T[B_ARM_L].x = -arm_a * s
-	T[B_ARM_R].x = arm_a * s
-	T[B_ARM_L].z = -0.07
-	T[B_ARM_R].z = 0.07
-	var elb := lerpf(0.16, 1.2, run) * maxf(moving, 0.4)
-	T[B_FARM_L].x = elb + 0.12 * maxf(0.0, -s) * moving
-	T[B_FARM_R].x = elb + 0.12 * maxf(0.0, s) * moving
+	# bracos: balanco oposto as pernas, com pequeno atraso; o cotovelo fecha quando a mao vem a frente
+	var sa := sin(phase - 0.28)
+	var arm_a := A * lerpf(0.72, 0.95, run)
+	T[B_ARM_L].x = -arm_a * sa + 0.07 * run * moving
+	T[B_ARM_R].x = arm_a * sa + 0.07 * run * moving
+	T[B_ARM_L].z = -0.07 - 0.05 * run * moving
+	T[B_ARM_R].z = 0.07 + 0.05 * run * moving
+	var elb := lerpf(0.17, 1.32, run) * maxf(moving, 0.4)
+	var elb_sw := lerpf(0.30, 0.38, run) * moving
+	T[B_FARM_L].x = elb + elb_sw * (0.5 - 0.5 * sa)
+	T[B_FARM_R].x = elb + elb_sw * (0.5 + 0.5 * sa)
 	# respiracao em repouso
 	var br := sin(_t * (1.5 + tired * 2.0) + _seed)
 	T[B_SPINE].x += br * (0.012 + 0.02 * tired) * (1.0 - moving)
@@ -744,7 +813,7 @@ func animate(dt: float) -> void:
 				T[B_FARM_L].x = 0.9
 
 	# ---- acoes
-	var k_rate := 12.0
+	var k_rate := 17.0
 	if act != "":
 		k_rate = 26.0
 		var t := act_t

@@ -118,21 +118,72 @@ func door_state(i: int) -> Dictionary:
 	return ds[i]
 
 
-func _make_doors() -> void:
-	var key := plan.c_door.to_html()
-	if not _door_mats.has(key):
-		# folha com almofadas, rodape metalico e macaneta dos dois lados
-		var dm := MB.new()
-		var dc := MB.wm(plan.c_door, MB.M_WOOD)
+## Folha de porta detalhada: montantes, travessas, almofadas em relevo, dobradicas, espelho e
+## macaneta dos dois lados. A externa tem vidros no alto, chapa de protecao e fenda de cartas.
+static func _door_mesh_for(col: Color, ext: bool, lod: bool) -> ArrayMesh:
+	var dm := MB.new()
+	var dc := MB.wm(col, MB.M_WOOD)
+	var fr := MB.wm(col.lightened(0.05), MB.M_WOOD)
+	var fld := MB.wm(col.darkened(0.10), MB.M_WOOD)
+	var brass := MB.wm(Color(0.74, 0.64, 0.38), MB.M_METAL)
+	var steel := MB.wm(Color(0.52, 0.52, 0.54), MB.M_METAL)
+	if lod:
 		dm.box(Vector3.ZERO, Vector3(0.92, 2.06, 0.05), dc)
 		for side in [-1.0, 1.0]:
-			for py in [0.56, -0.5]:
-				dm.box(Vector3(0, py, 0.028 * side), Vector3(0.66, 0.74 if py > 0.0 else 0.9, 0.012), dc.darkened(0.16))
-				dm.box(Vector3(0, py, 0.036 * side), Vector3(0.54, 0.6 if py > 0.0 else 0.76, 0.01), dc.lightened(0.06))
-			dm.box(Vector3(0, -0.96, 0.03 * side), Vector3(0.9, 0.12, 0.012), MB.wm(Color(0.5, 0.5, 0.52), MB.M_METAL))
-			dm.box(Vector3(0.36, 0.0, 0.045 * side), Vector3(0.05, 0.14, 0.03), MB.wm(Color(0.72, 0.68, 0.5), MB.M_METAL))
-			dm.box(Vector3(0.33, 0.0, 0.07 * side), Vector3(0.12, 0.03, 0.03), MB.wm(Color(0.72, 0.68, 0.5), MB.M_METAL))
-		_door_mats[key] = dm.to_mesh(Mats.world)
+			var fz: int = 4 if side > 0.0 else 8
+			dm.box(Vector3(0, 0.5, 0.027 * side), Vector3(0.64, 0.8, 0.004), fld, fz)
+			dm.box(Vector3(0, -0.52, 0.027 * side), Vector3(0.64, 0.84, 0.004), fld, fz)
+		return dm.to_mesh(Mats.world)
+	dm.box(Vector3.ZERO, Vector3(0.92, 2.06, 0.036), fld)
+	# linhas de travessas (do alto para baixo) e colunas de almofadas
+	var rails := [1.03, 0.52, -0.10, -1.03]
+	var rh := [0.13, 0.11, 0.16, 0.22]
+	for side in [-1.0, 1.0]:
+		var fz2: int = (4 if side > 0.0 else 8) | 1 | 2 | 16 | 32
+		var z: float = 0.024 * side
+		dm.box(Vector3(-0.405, 0, z), Vector3(0.11, 2.06, 0.014), fr, fz2)
+		dm.box(Vector3(0.405, 0, z), Vector3(0.11, 2.06, 0.014), fr, fz2)
+		for i in rails.size():
+			var ry: float = rails[i]
+			var hh: float = rh[i]
+			if i == 0:
+				ry -= hh * 0.5
+			elif i == rails.size() - 1:
+				ry += hh * 0.5
+			dm.box(Vector3(0, ry, z), Vector3(0.70, hh, 0.014), fr, fz2)
+		dm.box(Vector3(0, -0.02, z), Vector3(0.09, 1.8, 0.014), fr, fz2)
+		# almofadas (ou vidros, no alto da porta externa)
+		var rows := [[0.90, 0.575], [0.465, -0.02], [-0.18, -0.81]]
+		for ri in rows.size():
+			var ya: float = rows[ri][0]
+			var yb: float = rows[ri][1]
+			for cx in [-0.2, 0.2]:
+				if ext and ri == 0:
+					dm.box(Vector3(cx, (ya + yb) * 0.5, 0.019 * side), Vector3(0.3, ya - yb, 0.004), MB.wm(Color(0.20, 0.30, 0.36), MB.M_METAL), fz2 & 12)
+				else:
+					dm.box(Vector3(cx, (ya + yb) * 0.5, 0.021 * side), Vector3(0.24, ya - yb - 0.07, 0.008), dc, fz2)
+					dm.box(Vector3(cx, (ya + yb) * 0.5, 0.026 * side), Vector3(0.19, ya - yb - 0.13, 0.006), fr, fz2)
+		# espelho, macaneta e fechadura
+		dm.box(Vector3(0.375, -0.06, 0.033 * side), Vector3(0.05, 0.2, 0.006), brass, fz2)
+		dm.box(Vector3(0.375, -0.02, 0.05 * side), Vector3(0.022, 0.022, 0.034), brass, fz2)
+		dm.ellipsoid(Vector3(0.375, -0.02, 0.075 * side), Vector3(0.034, 0.034, 0.024), brass, 8, 5)
+		dm.box(Vector3(0.375, -0.12, 0.037 * side), Vector3(0.012, 0.03, 0.004), Color(0.05, 0.05, 0.05), fz2 & 12)
+		if ext:
+			dm.box(Vector3(0, -0.93, z + 0.008 * side), Vector3(0.9, 0.2, 0.006), steel, fz2)
+			dm.box(Vector3(0, -0.36, 0.033 * side), Vector3(0.26, 0.05, 0.006), brass, fz2)
+			dm.box(Vector3(0.375, 0.2, 0.036 * side), Vector3(0.05, 0.05, 0.012), steel, fz2)
+	# dobradicas no lado do eixo
+	for hy in [0.78, 0.0, -0.78]:
+		dm.box(Vector3(-0.462, hy, 0), Vector3(0.012, 0.11, 0.07), steel)
+	return dm.to_mesh(Mats.world)
+
+
+func _make_doors() -> void:
+	for ext_v in [false, true]:
+		var key0 := plan.c_door.to_html() + ("e" if ext_v else "i")
+		if not _door_mats.has(key0):
+			_door_mats[key0] = _door_mesh_for(plan.c_door, ext_v, false)
+			_door_mats[key0 + "L"] = _door_mesh_for(plan.c_door, ext_v, true)
 	for i in plan.doors.size():
 		var d: Dictionary = plan.doors[i]
 		var piv := Node3D.new()
@@ -143,11 +194,18 @@ func _make_doors() -> void:
 			piv.position = Vector3(d["x"] + 0.5, y0, d["z"] + 0.04)
 			piv.rotation.y = -PI * 0.5
 		add_child(piv)
+		var key: String = plan.c_door.to_html() + ("e" if d["ext"] else "i")
 		var mi := MeshInstance3D.new()
 		mi.mesh = _door_mats[key]
 		mi.position = Vector3(0.46, 1.06, 0)
-		mi.visibility_range_end = 70.0
+		mi.visibility_range_end = 24.0
 		piv.add_child(mi)
+		var mi_far := MeshInstance3D.new()
+		mi_far.mesh = _door_mats[key + "L"]
+		mi_far.position = Vector3(0.46, 1.06, 0)
+		mi_far.visibility_range_begin = 24.0
+		mi_far.visibility_range_end = 70.0
+		piv.add_child(mi_far)
 		var sb := StaticBody3D.new()
 		sb.collision_layer = G.L_WORLD
 		sb.collision_mask = 0

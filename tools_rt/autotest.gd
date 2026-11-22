@@ -47,6 +47,8 @@ func start(prof: String = "desempregado", traits: Array = [], preset: String = "
 	G.apply_preset(preset)
 	var sb: Dictionary = G.sandbox.duplicate(true)
 	sb["tutorial"] = false
+	if no_zombies:
+		sb["zombie_pop"] = 0.0
 	var r := RandomNumberGenerator.new()
 	r.seed = 99
 	var body := Clothes.random_body(r)
@@ -205,6 +207,76 @@ func scn_graf() -> void:
 	await shot("noite_postes")
 	await tp(Vector3(-1150, 0.1, -128), PI * 0.5, -0.16)
 	await shot("noite_bairro")
+
+
+## Capim alto, folhagem de perto e moveis: procura uma mancha de capim fora das cidades.
+func scn_capim() -> void:
+	await start()
+	var gen: WorldGen = G.world.gen
+	var tnz := FastNoiseLite.new()
+	tnz.seed = 911
+	tnz.frequency = 0.033
+	var spot := Vector3.ZERO
+	for zi in 40:
+		for xi in 60:
+			var px := -700.0 + xi * 20.0
+			var pz := 120.0 + zi * 14.0
+			if spot == Vector3.ZERO and gen.zone_at(px, pz) == WorldGen.Z_FARM and gen.field_at(px, pz) < 0 and gen.road_at(px, pz) < 0 and gen.lot_at(px, pz) < 0 and tnz.get_noise_2d(px, pz) > 0.42:
+				spot = Vector3(px, 0.1, pz)
+	print("CAPIM em ", spot)
+	await hour(10.0)
+	await tp(spot, 0.6, -0.14)
+	await wait(2.5)
+	await shot("capim_alto")
+	await tp(spot + Vector3(3, 0, 2), 2.4, -0.3)
+	await wait(1.0)
+	await shot("capim_alto_2")
+	await tp(Vector3(-1146, 0.1, -128), PI * 0.5, 0.25)
+	await wait(2.0)
+	await shot("copa_de_perto")
+	await tp(Vector3(-516, 0.1, -449), 0.5, 0.05)
+	await wait(2.0)
+	await shot("mata_folhas")
+
+
+var no_zombies := false
+
+
+## Corpo base do personagem (sem roupas) e quadros de caminhada e corrida vistos de lado.
+func scn_corpo() -> void:
+	no_zombies = true
+	await start()
+	await hour(11.0)
+	var p: Node3D = G.player
+	await tp(Vector3(-946, 0.1, -26), 0.0, -0.05)
+	await wait(1.5)
+	G.settings["cam_dist"] = 2.5
+	var vestido: Dictionary = p.hum.look.duplicate(true)
+	var nu := {"seed": 2, "female": false, "skin": vestido.get("skin", Color(0.84, 0.65, 0.52)), "hair": Color(0.2, 0.14, 0.1), "hair_style": 0, "build": 1.0, "body_hair": true, "shoes": {"style": 0}}
+	p.hum.set_look(nu)
+	for ang in [[PI, "frente"], [PI * 0.75, "tres_quartos"], [PI * 0.5, "lado"], [0.0, "costas"]]:
+		p.yaw = float(ang[0])
+		await wait(0.6)
+		await shot("corpo_" + str(ang[1]))
+	p.yaw = 0.0
+	p.rotation.y = 0.0
+	await wait(0.3)
+	G.hud.joy_vec = Vector2(1, 0)
+	await wait(1.2)
+	for i in 4:
+		await wait(0.14)
+		await shot("andando_%d" % i)
+	p.sprinting = true
+	await wait(1.4)
+	for i in 4:
+		await wait(0.09)
+		await shot("correndo_%d" % i)
+	G.hud.joy_vec = Vector2.ZERO
+	p.sprinting = false
+	p.hum.set_look(vestido)
+	p.yaw = PI * 0.8
+	await wait(0.8)
+	await shot("vestido")
 
 
 var _fails := 0

@@ -10,6 +10,7 @@ uniform float bump = 1.0;
 uniform float wet = 0.0;
 uniform float gloss = 0.0;
 uniform bool leafy = false;
+uniform bool blade = false;
 varying vec3 wpos;
 varying vec3 wnor;
 
@@ -38,6 +39,33 @@ void vertex() {
 	wnor = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 
+// folhas: cada celula tem uma folha pontuda com orientacao propria; retorna (mascara, tom)
+vec2 leafcell(vec2 p, float wd) {
+	vec2 i = floor(p);
+	vec2 f = fract(p) - 0.5;
+	float a = hash21(i) * 6.2832;
+	f -= (vec2(hash21(i + 1.7), hash21(i + 9.2)) - 0.5) * 0.3;
+	vec2 d = vec2(cos(a), sin(a));
+	float al = dot(f, d);
+	float ac = dot(f, vec2(-d.y, d.x));
+	float w = wd * (1.0 - pow(min(abs(al) / 0.46, 1.0), 1.7));
+	float mask = smoothstep(0.0, 0.035, w - abs(ac));
+	float rib = 1.0 - 0.25 * smoothstep(0.035, 0.0, abs(ac));
+	return vec2(mask, (0.70 + 0.52 * hash21(i + 4.4)) * rib * (0.86 + 0.28 * (al + 0.46)));
+}
+
+// fios de grama: tracos curtos com direcao aleatoria por celula
+float bladecell(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p) - 0.5;
+	float a = hash21(i) * 6.2832;
+	vec2 d = vec2(cos(a), sin(a));
+	float al = dot(f, d);
+	float ac = dot(f, vec2(-d.y, d.x)) + (hash21(i + 7.3) - 0.5) * 0.5;
+	float m = smoothstep(0.11, 0.02, abs(ac)) * smoothstep(0.5, 0.25, abs(al));
+	return m * (hash21(i + 3.1) - 0.38);
+}
+
 // celulas retangulares com juntas (tijolos, tabuas de piso, pedras): retorna mascara da face e id da celula
 vec3 cells(vec2 uv, vec2 size, float stagger, float jx, float jy) {
 	vec2 b = uv / size;
@@ -63,7 +91,7 @@ void fragment() {
 	float dist = length(VERTEX);
 	float fade = clamp(1.0 - dist / 75.0, 0.0, 1.0);
 	float m = (0.91 + 0.15 * n1) * (0.94 + 0.10 * n2);
-	int id = leafy ? (COLOR.a < 0.05 ? 16 : 17) : int(COLOR.a * 20.0 + 0.5);
+	int id = blade ? 21 : (leafy ? (COLOR.a < 0.05 ? 16 : 17) : int(COLOR.a * 20.0 + 0.5));
 	bool wall = false;
 	bool ground = false;
 	if (id == 1) {
@@ -78,10 +106,15 @@ void fragment() {
 		col = mix(col, col * vec3(0.66, 0.90, 0.60), smoothstep(0.35, 0.75, patch) * 0.65);
 		col = mix(col, col * vec3(1.30, 1.14, 0.62), smoothstep(0.60, 0.82, n2) * 0.42);
 		col = mix(col, col * vec3(0.78, 1.08, 0.70), smoothstep(0.66, 0.80, clover) * 0.5 * fade);
-		col *= 1.0 + ((blades - 0.5) * 0.75 + (g2 - 0.5) * 0.40) * fade;
+		col *= 1.0 + ((blades - 0.5) * 0.55 + (g2 - 0.5) * 0.35) * fade;
+		float nearg = clamp(1.0 - dist / 20.0, 0.0, 1.0);
+		float bl = bladecell(uv * 15.0) + bladecell(uv.yx * 23.0 + 4.7) + 0.8 * bladecell((uv + uv.yx * 0.35) * 34.0 + 9.1);
+		col *= 1.0 + bl * 1.05 * nearg;
+		float flw = step(0.994, hash21(floor(uv * 11.0))) * nearg * step(0.5, patch);
+		col = mix(col, vec3(0.78, 0.76, 0.50), flw * smoothstep(0.38, 0.2, length(fract(uv * 11.0) - 0.5)));
 		col = mix(col, vec3(0.25, 0.20, 0.14), smoothstep(0.27, 0.17, n1 * 0.6 + g * 0.4) * 0.55 * fade);
-		h = blades * 0.6 + g2 * 0.4;
-		bs = 0.7;
+		h = blades * 0.5 + g2 * 0.3 + bl * nearg;
+		bs = 0.8;
 		rough = 0.95;
 		spec = 0.10;
 		ground = true;
@@ -205,13 +238,18 @@ void fragment() {
 		bs = 0.5;
 		ground = true;
 	} else if (id == 12) {
-		// tecido
+		// tecido: trama, manchas suaves de uso e brilho aveludado nas bordas
 		float wv = texture(noise_tex, uv * 9.0).r;
-		col *= 0.88 + 0.22 * wv;
-		h = wv;
-		bs = 0.3;
+		float nearf = clamp(1.0 - dist / 9.0, 0.0, 1.0);
+		float weave = sin(uv.x * 250.0) * sin(uv.y * 250.0);
+		float rimf = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.5);
+		col *= (0.86 + 0.20 * wv) * (0.93 + 0.12 * n1) * (1.0 + 0.08 * weave * nearf);
+		col += col * rimf * 0.38;
+		h = wv * 0.6 + weave * 0.2 * nearf;
+		bs = 0.35;
 		rough = 0.98;
 		spec = 0.05;
+		m = mix(1.0, m, 0.5);
 	} else if (id == 13) {
 		// solo arado em sulcos
 		float fr = sin(wpos.z * 3.927);
@@ -228,15 +266,25 @@ void fragment() {
 		bs = 1.0;
 		wall = true;
 	} else if (id == 15) {
-		// madeira envernizada dos moveis: veios
-		float grain = texture(noise_tex, vec2(uv.x * 1.2, uv.y * 11.0)).r;
-		float grain2 = texture(noise_tex, vec2(uv.x * 0.4 + 0.5, uv.y * 3.0)).r;
+		// madeira envernizada: veios ao longo do comprimento, aneis de crescimento, poros e nos
+		vec2 gu = up ? uv : uv.yx;
+		float warp = vnoise(gu * vec2(0.9, 4.0));
+		float grain = texture(noise_tex, vec2(gu.x * 1.2, gu.y * 11.0)).r;
+		float grain2 = texture(noise_tex, vec2(gu.x * 0.4 + 0.5, gu.y * 3.0)).r;
+		float ring = sin(gu.y * 44.0 + warp * 9.0 + grain * 3.0) * 0.5 + 0.5;
+		float pore = texture(noise_tex, vec2(gu.x * 3.0, gu.y * 37.0)).r;
+		vec2 kc = floor(gu * vec2(0.9, 2.6));
+		vec2 kf = fract(gu * vec2(0.9, 2.6)) - vec2(hash21(kc + 2.0), hash21(kc + 5.0)) * 0.6 - 0.2;
+		float knot = step(0.86, hash21(kc)) * smoothstep(0.10, 0.02, length(kf * vec2(0.6, 1.0)));
 		float ga = mix(1.0, 0.30, smoothstep(0.40, 0.75, dot(col, vec3(0.333))));
-		col *= mix(1.0, (0.80 + 0.26 * grain) * (0.90 + 0.16 * grain2), ga);
-		h = grain;
-		bs = 0.2;
-		rough = 0.45;
-		spec = 0.40;
+		float wf = clamp(1.0 - dist / 30.0, 0.0, 1.0);
+		col *= mix(1.0, (0.80 + 0.24 * grain) * (0.90 + 0.16 * grain2) * (0.90 + 0.14 * ring * wf) * (0.94 + 0.10 * pore * wf), ga);
+		col *= 1.0 - 0.45 * knot * ga * wf;
+		h = grain * 0.6 + ring * 0.25 * wf - knot;
+		bs = 0.28;
+		rough = 0.40;
+		spec = 0.42;
+		m = mix(1.0, m, 0.5);
 	} else if (id == 16) {
 		// casca de arvore e pedra
 		float bk = vnoise(vec2(uv.x * 15.0, uv.y * 1.7)) * 0.55 + texture(noise_tex, vec2(uv.x * 2.6, uv.y * 0.6)).r * 0.45;
@@ -245,19 +293,26 @@ void fragment() {
 		h = bk;
 		bs = 1.0;
 	} else if (id == 17) {
-		// folhagem: massas claras e escuras, folhas e vaos de sombra
+		// folhagem: folhas individuais em tres camadas, massas claras e escuras e vaos de sombra
+		bool conifer = COLOR.b > COLOR.r * 1.2;
+		float lsc = conifer ? 9.0 : 5.2;
+		float lwd = conifer ? 0.10 : 0.25;
+		vec2 la = leafcell(uv * lsc, lwd);
+		vec2 lb = leafcell(uv * lsc * 1.37 + vec2(3.3, 7.1), lwd);
+		vec2 lc = leafcell(uv.yx * lsc * 0.83 + vec2(5.9, 1.3), lwd);
+		float lmask = max(la.x, max(lb.x, lc.x));
+		float ltone = la.x > 0.5 ? la.y : (lb.x > 0.5 ? lb.y * 0.90 : lc.y * 0.80);
+		float lfade = clamp(1.0 - (dist - 12.0) / 22.0, 0.0, 1.0);
 		float l1 = texture(noise_tex, wpos.xz * 0.9 + wpos.y * 0.37).r;
 		float l2 = texture(noise_tex, wpos.xz * 3.3 + wpos.y * 1.7).r;
-		float lf = vnoise(wpos.xz * 8.0 + wpos.y * 4.7) * 0.5 + vnoise(wpos.zy * 10.0 + wpos.x * 3.9) * 0.5;
-		float leaf = smoothstep(0.30, 0.70, lf);
-		col *= vec3(0.80, 0.82, 0.78);
-		col *= (0.66 + 0.5 * l1) * (0.80 + 0.34 * l2);
-		col *= mix(1.0, 0.52 + 0.80 * leaf, fade);
-		col = mix(col, col * vec3(1.22, 1.16, 0.66), smoothstep(0.58, 0.8, l2) * leaf * 0.45);
-		h = leaf * 0.7 + l2 * 0.3;
-		bs = 1.0;
-		rough = 0.80;
-		spec = 0.14;
+		col *= vec3(0.86, 0.88, 0.84) * (0.66 + 0.5 * l1) * (0.80 + 0.34 * l2);
+		col *= mix(0.84, mix(conifer ? 0.58 : 0.40, ltone * 1.12, lmask), lfade);
+		col = mix(col, col * vec3(1.24, 1.16, 0.64), smoothstep(0.56, 0.8, l2) * lmask * 0.42);
+		// @CUT if (lfade > 0.3 && lmask < 0.35 && abs(dot(NORMAL, VIEW)) < 0.52) discard;
+		h = lmask * (0.5 + 0.5 * ltone);
+		bs = 1.0 * lfade;
+		rough = 0.78;
+		spec = 0.16;
 		m = 1.0;
 	} else if (id == 18) {
 		// metal e esmalte lisos (eletrodomesticos, ferragens)
@@ -282,6 +337,16 @@ void fragment() {
 			spec = mix(spec, 0.35, bb);
 			wall = true;
 		}
+	} else if (id == 21) {
+		// tufos de grama e capim alto: acompanham os tons do chao e ganham fibras ao longo do fio
+		float patch = vnoise(wpos.xz * 0.31);
+		float fib = texture(noise_tex, vec2(wpos.x * 9.0 + wpos.z * 7.0, wpos.y * 0.8)).r;
+		col *= mix(0.80, 1.12, n2);
+		col = mix(col, col * vec3(0.66, 0.90, 0.60), smoothstep(0.35, 0.75, patch) * 0.65);
+		col *= 0.80 + 0.40 * fib;
+		rough = 0.9;
+		spec = 0.12;
+		m = 1.0;
 	} else {
 		m = mix(1.0, m, detail * 0.45);
 		col *= 0.97 + 0.05 * n3;

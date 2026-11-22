@@ -27,6 +27,7 @@ var _tree_near: Array = []
 var _tree_far: Array = []
 var _grass_mesh: ArrayMesh
 var _flower_mesh: ArrayMesh
+var _tall_mesh: ArrayMesh
 var _lamp_lights: Array = []
 var _lamps_lit := false
 var _lamp_t := 0.0
@@ -200,12 +201,12 @@ func _make_tree_meshes() -> void:
 	_stump_mesh = s.to_mesh(Mats.world)
 	# ---- tufo de grama e flores
 	var gm := MB.new()
-	for i in 8:
-		var a := TAU * i / 8.0 + 0.3 * (i % 3)
+	for i in 12:
+		var a := TAU * i / 12.0 + 0.3 * (i % 3)
 		var d := Vector3(cos(a), 0, sin(a))
 		var side := Vector3(-d.z, 0, d.x) * 0.03
-		var p0 := d * 0.07
-		var h := 0.3 + 0.07 * ((i * 5) % 4)
+		var p0 := d * (0.04 + 0.05 * (i % 3))
+		var h := 0.26 + 0.07 * ((i * 5) % 4)
 		var p1 := p0 + d * 0.07 + Vector3(0, h * 0.6, 0)
 		var p2 := p0 + d * 0.2 + Vector3(0, h, 0)
 		var c0 := Color(0.10, 0.19, 0.08, 0.0)
@@ -233,6 +234,43 @@ func _make_tree_meshes() -> void:
 		fm.ix.append_array(PackedInt32Array([b0, b0 + 1, b0 + 2]))
 		fm.box(Vector3(px, hh + 0.03, pz), Vector3(0.075, 0.05, 0.075), fc[i])
 	_flower_mesh = fm.to_mesh(Mats.grass)
+	# ---- capim alto: fios longos e curvos, com hastes e espigas
+	var tm := MB.new()
+	for i in 10:
+		var a3 := TAU * i / 10.0 + 0.5 * (i % 3)
+		var d3 := Vector3(cos(a3), 0, sin(a3))
+		var s3 := Vector3(-d3.z, 0, d3.x) * 0.032
+		var h3 := 0.62 + 0.14 * ((i * 5) % 4)
+		var q0 := d3 * (0.05 + 0.13 * ((i * 7) % 5) / 4.0)
+		var q1 := q0 + d3 * 0.05 + Vector3(0, h3 * 0.45, 0)
+		var q2 := q0 + d3 * 0.16 + Vector3(0, h3 * 0.8, 0)
+		var q3 := q0 + d3 * 0.34 + Vector3(0, h3, 0)
+		var k0 := Color(0.09, 0.17, 0.07, 0.0)
+		var k1 := Color(0.17, 0.29, 0.11, 0.35)
+		var k2 := Color(0.30, 0.40, 0.15, 0.75)
+		var k3 := Color(0.40, 0.46, 0.19, 1.0)
+		var b3 := tm.v.size()
+		for e3 in [[q0 - s3, k0], [q0 + s3, k0], [q1 - s3 * 0.8, k1], [q1 + s3 * 0.8, k1], [q2 - s3 * 0.5, k2], [q2 + s3 * 0.5, k2], [q3, k3]]:
+			tm.v.append(e3[0])
+			tm.n.append(Vector3.UP)
+			tm.c.append(e3[1])
+		tm.ix.append_array(PackedInt32Array([b3, b3 + 1, b3 + 2, b3 + 1, b3 + 3, b3 + 2, b3 + 2, b3 + 3, b3 + 4, b3 + 3, b3 + 5, b3 + 4, b3 + 4, b3 + 5, b3 + 6]))
+	for j in 2:
+		var a4 := 0.9 + j * 2.9
+		var o4 := Vector3(cos(a4) * 0.07, 0, sin(a4) * 0.07)
+		var tp4 := o4 * 2.4 + Vector3(0, 0.95 + 0.12 * j, 0)
+		var sd4 := Vector3(0.008, 0, 0.004)
+		var b4 := tm.v.size()
+		for e4 in [[o4 - sd4, Color(0.2, 0.3, 0.12, 0.0)], [o4 + sd4, Color(0.2, 0.3, 0.12, 0.0)], [tp4 - sd4, Color(0.40, 0.42, 0.21, 0.9)], [tp4 + sd4, Color(0.40, 0.42, 0.21, 0.9)]]:
+			tm.v.append(e4[0])
+			tm.n.append(Vector3.UP)
+			tm.c.append(e4[1])
+		tm.ix.append_array(PackedInt32Array([b4, b4 + 1, b4 + 2, b4 + 1, b4 + 3, b4 + 2]))
+		tm.box_t(Transform3D(Basis(Vector3.UP, a4), tp4 + Vector3(0, 0.08, 0)), Vector3(0.02, 0.14, 0.02), Color(0.50, 0.44, 0.25, 1.0), 4 | 8 | 16 | 32)
+	# as espigas recebem luz como o chao
+	for vi in tm.n.size():
+		tm.n[vi] = Vector3.UP
+	_tall_mesh = tm.to_mesh(Mats.grass)
 
 
 func _trunk(m: MB, bark: Color, r0: float, r1: float, h: float) -> void:
@@ -776,13 +814,44 @@ func _gen_chunk(k: Vector2i, gone: Dictionary) -> void:
 			flowers.append(Vector3(gx, gs, gz))
 		else:
 			grass.append(Vector3(gx, gs, gz))
+	# ---- capim alto em manchas (campos, margens de mata e quintais abandonados)
+	var tall := PackedVector3Array()
+	var tnz := FastNoiseLite.new()
+	tnz.seed = 911
+	tnz.frequency = 0.033
+	for ti in [60, 170, 250][gq]:
+		var tx := x0 + gr.randf() * CH
+		var tz := z0 + gr.randf() * CH
+		var ts2 := gr.randf_range(1.0, 1.7)
+		var tzn := gen.zone_at(tx, tz)
+		if tzn == WorldGen.Z_RIVER or gen.road_at(tx, tz) >= 0 or gen.field_at(tx, tz) >= 0:
+			continue
+		var need := 0.10
+		if tzn == WorldGen.Z_FOREST:
+			need = 0.22
+		var tl2 := gen.lot_at(tx, tz)
+		if tl2 >= 0:
+			var tlot: Dictionary = gen.lots[tl2]
+			if tlot["type"] != "casa" or Rect2(tlot["b"]).grow(1.2).has_point(Vector2(tx, tz)):
+				continue
+			need = 0.34
+		elif tzn == WorldGen.Z_CITY:
+			continue
+		var tnv := tnz.get_noise_2d(tx, tz)
+		if tnv < need or gr.randf() > 0.35 + (tnv - need) * 2.4:
+			continue
+		tall.append(Vector3(tx, ts2, tz))
+		# segunda touceira ao lado, para a mancha ficar fechada
+		var ta := gr.randf() * TAU
+		var td := gr.randf_range(0.45, 0.95)
+		tall.append(Vector3(tx + cos(ta) * td, ts2 * gr.randf_range(0.8, 1.15), tz + sin(ta) * td))
 	# ---- arvores
 	var trees := gen.trees_for(k.x, k.y)
 	for t in trees:
 		if t["k"] != 3:
 			nav.append(Vector2(floorf(t["x"]), floorf(t["z"])))
 	var res := {"key": k, "ground": m, "water": wm, "wcols": wcols, "gcols": gcols, "trees": trees, "nav": nav, "plans": plans,
-		"glow": gl, "pool": pl, "lamps": lamp_pos, "grass": grass, "flowers": flowers}
+		"glow": gl, "pool": pl, "lamps": lamp_pos, "grass": grass, "flowers": flowers, "tall": tall}
 	_mutex.lock()
 	_results.append(res)
 	_mutex.unlock()
@@ -923,13 +992,13 @@ func _finish_chunk(res: Dictionary) -> void:
 		pmi.visible = _lamps_lit
 		node.add_child(pmi)
 		ch["lamp_nodes"] = [gmi2, pmi]
-	for pass_i in 2:
-		var pts: PackedVector3Array = res["grass"] if pass_i == 0 else res["flowers"]
+	for pass_i in 3:
+		var pts: PackedVector3Array = res["grass"] if pass_i == 0 else (res["flowers"] if pass_i == 1 else res["tall"])
 		if pts.is_empty():
 			continue
 		var gmm := MultiMesh.new()
 		gmm.transform_format = MultiMesh.TRANSFORM_3D
-		gmm.mesh = _grass_mesh if pass_i == 0 else _flower_mesh
+		gmm.mesh = _grass_mesh if pass_i == 0 else (_flower_mesh if pass_i == 1 else _tall_mesh)
 		gmm.instance_count = pts.size()
 		for gi in pts.size():
 			var gp: Vector3 = pts[gi]
@@ -937,7 +1006,7 @@ func _finish_chunk(res: Dictionary) -> void:
 		var gmmi := MultiMeshInstance3D.new()
 		gmmi.multimesh = gmm
 		gmmi.position = corig
-		gmmi.visibility_range_end = 62.0
+		gmmi.visibility_range_end = 62.0 if pass_i < 2 else 56.0
 		gmmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		node.add_child(gmmi)
 	chunks[k] = ch

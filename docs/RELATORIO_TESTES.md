@@ -1,8 +1,8 @@
-# Relatório de testes — Última Bruma 0.1.2
+# Relatório de testes — Última Bruma 0.1.3
 
 Data: 22 de novembro de 2026.
 
-> Versão 0.1.2: os quatro roteiros de funcionamento foram executados de novo depois da troca dos materiais gráficos. **A tabela de carga por cena abaixo é da versão 0.1.1 e não foi refeita**: os novos shaders custam mais por pixel, e esse custo só pode ser avaliado em um aparelho com GPU.
+> Versão 0.1.3: os quatro roteiros de funcionamento foram executados de novo depois das mudanças gráficas (materiais, móveis detalhados, capim alto, folhagem). **A tabela de carga por cena abaixo é da versão 0.1.1 e não foi refeita**: a 0.1.3 desenha mais triângulos (móveis, portas, capim) e usa shaders mais caros por pixel, inclusive recorte de folhas; esse custo só pode ser avaliado em um aparelho com GPU. O perfil gráfico "Baixo" volta aos móveis simples, reduz o capim e desliga o relevo.
 
 ## Onde os testes rodaram
 
