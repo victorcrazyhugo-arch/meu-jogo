@@ -1,7 +1,10 @@
-// Left to Die — servidor de salas (etapa 3: jogadores, chat, mundo da sala e carros).
+// Left to Die — servidor de salas (etapa 4: jogadores, chat, mundo da sala, carros e itens no chão).
 // Retransmite o estado de cada jogador e guarda em memória o mundo de cada sala (portas, baús e carros),
 // para quem entrar depois receber tudo igual. Nada vai para disco: se o servidor reiniciar,
 // o primeiro jogador que voltar reenvia o que tem salvo.
+// Itens no chão (largados, troncos, peixes) também ficam na sala. Dois jogadores pegando o mesmo item ao
+// mesmo tempo (do chão ou de um baú): vale quem chegou primeiro ao servidor; o outro recebe 'lost' e o item
+// sai do inventário dele (sem duplicar).
 // Uso: PORT=8080 node server.js
 import http from 'node:http';
 import { WebSocketServer } from 'ws';
@@ -16,6 +19,8 @@ const MAX_CARS = 160, MAX_CAR_BYTES = 8 * 1024;    // carros e carretas parados 
 const MAX_PROFILE_BYTES = 96 * 1024;
 const MAX_WORLD_BYTES = 400 * 1024;   // uma mensagem de mundo (semente de portas, baú grande)
 const MAX_DOORS = 8000, MAX_CONTAINERS = 6000, MAX_CONTAINER_ITEMS = 240, MAX_DEAD_ZOMBIES = 60000;
+const MAX_GROUND = 6000, MAX_GROUND_FLOOR = 1500, MAX_GROUND_BYTES = 2000;   // itens no chão: os que estão no chão e os que já foram pegos
+const RACE_MS = 60000;   // quem pegou um item há menos de 1 minuto: outro que pegar o mesmo item perde a disputa
 const WORLD_KEEP_MS = 6 * 60 * 60 * 1000;   // sala vazia mantém o mundo por 6 horas
 const MAX_CHAT_CHARS = 200;
 const RATE_PER_SECOND = 45;      // mensagens por segundo por conexão
@@ -47,7 +52,7 @@ function broadcast(room, message, except) {
 }
 function worldOf(code) {
   let world = worlds.get(code);
-  if (!world) { world = { doors: Object.create(null), doorCount: 0, loot: new Map(), zdead: new Map(), revs: new Map(), cars: new Map(), touched: Date.now() }; worlds.set(code, world); }
+  if (!world) { world = { doors: Object.create(null), doorCount: 0, loot: new Map(), lootGone: new Map(), zdead: new Map(), revs: new Map(), cars: new Map(), ground: new Map(), groundFloor: 0, groundBy: new Map(), touched: Date.now() }; worlds.set(code, world); }
   world.touched = Date.now();
   return world;
 }
@@ -61,7 +66,7 @@ function handleWorld(player, room, message) {
     let any = false;
     for (const key of Object.keys(source)) {
       const value = source[key];
-      if (!goodKey(key) || !(simple(value) || (isObject(value) && JSON.stringify(value).length <= 400))) continue;
+      if (!goodKey(key) || !(simple(value) || (isObject(value) && JSON.stringify(value).length <= (key.startsWith('obj:') ? 1500 : 400)))) continue;   // obj: caixote, gerador, coletor
       const known = key in world.doors;
       if (seeding && known) continue;                       // semente não troca o que a sala já sabe
       if (!known) { if (world.doorCount >= MAX_DOORS) continue; world.doorCount++; }
@@ -115,6 +120,32 @@ function handleWorld(player, room, message) {
     }
     if (any) broadcast(room, { t: 'w', k: 'car', c: changed }, player);
     if (anyBack) send(player.socket, { t: 'w', k: 'car', c: back });   // semente atrasada: vale o que a sala já tinha
+  } else if (message.k === 'gnd' && Array.isArray(message.ops)) {
+    // Itens no chão: [id, registro] = está no chão (posição e dados do item); [id, 0] = alguém pegou.
+    // A semente (quem entra) não troca o que a sala já sabe.
+    const fresh = [], lost = [], time = Date.now(), seeding = !!message.seed;
+    for (const [item, info] of world.groundBy) { if (time - info.at > RACE_MS) world.groundBy.delete(item); else break; }
+    for (const op of message.ops.slice(0, 120)) {
+      if (!Array.isArray(op) || !goodKey(op[0])) continue;
+      const item = op[0], value = op[1], known = world.ground.get(item);
+      if (seeding && known !== undefined) continue;
+      if (value === 0) {
+        if (known === 0) { const info = world.groundBy.get(item); if (!seeding && info && info.by !== player.cid) lost.push(item); continue; }
+        if (known === undefined && world.ground.size >= MAX_GROUND) { const old = [...world.ground].find(([, v]) => v === 0); if (!old) continue; world.ground.delete(old[0]); }
+        if (known) world.groundFloor--;
+        world.ground.delete(item); world.ground.set(item, 0);
+        world.groundBy.delete(item); world.groundBy.set(item, { by: player.cid, at: time });
+        fresh.push([item, 0]);
+      } else if (isObject(value) && Array.isArray(value.position) && value.position.length === 3 && value.position.every(Number.isFinite) && JSON.stringify(value).length <= MAX_GROUND_BYTES) {
+        if (!known && world.groundFloor >= MAX_GROUND_FLOOR) continue;
+        if (known === undefined && world.ground.size >= MAX_GROUND) { const old = [...world.ground].find(([, v]) => v === 0); if (!old) continue; world.ground.delete(old[0]); }
+        if (!known) world.groundFloor++;
+        world.ground.set(item, value); world.groundBy.delete(item);
+        fresh.push([item, value]);
+      }
+    }
+    if (fresh.length) broadcast(room, { t: 'w', k: 'gnd', ops: fresh }, player);
+    if (lost.length) send(player.socket, { t: 'w', k: 'lost', from: 'gnd', items: lost });
   } else if (message.k === 'loot' && goodKey(message.id)) {
     const id = message.id, full = Array.isArray(message.full) ? message.full.filter(goodItem).slice(0, MAX_CONTAINER_ITEMS) : null;
     let list = world.loot.get(id);
@@ -122,7 +153,16 @@ function handleWorld(player, room, message) {
       if (!full || world.loot.size >= MAX_CONTAINERS) return;
       list = full; world.loot.set(id, list);
     } else if (!message.seed) {
-      if (Array.isArray(message.del)) { const gone = new Set(message.del.slice(0, MAX_CONTAINER_ITEMS).map(String)); list = list.filter(item => !gone.has(String(item.id))); }
+      if (Array.isArray(message.del)) {
+        const gone = new Set(message.del.slice(0, MAX_CONTAINER_ITEMS).map(String)), time = Date.now();
+        let taken = world.lootGone.get(id); if (!taken) { taken = new Map(); world.lootGone.set(id, taken); if (world.lootGone.size > 400) world.lootGone.delete(world.lootGone.keys().next().value); }
+        for (const [item, info] of taken) if (time - info.at > RACE_MS) taken.delete(item);
+        const present = new Set(list.map(item => String(item.id))), lost = [];
+        // Item que outro jogador tirou deste baú há pouco: quem chegou depois perde a disputa.
+        for (const item of gone) { if (present.has(item)) taken.set(item, { by: player.cid, at: time }); else { const info = taken.get(item); if (info && info.by !== player.cid) lost.push(item); } }
+        if (lost.length) send(player.socket, { t: 'w', k: 'lost', from: 'loot', id, items: lost });
+        list = list.filter(item => !gone.has(String(item.id)));
+      }
       if (Array.isArray(message.put)) for (const item of message.put.slice(0, MAX_CONTAINER_ITEMS)) { if (!goodItem(item)) continue; const at = list.findIndex(other => String(other.id) === String(item.id)); if (at >= 0) list[at] = item; else if (list.length < MAX_CONTAINER_ITEMS) list.push(item); }
       world.loot.set(id, list);
     } else return;                                           // semente de baú que a sala já conhece
@@ -148,7 +188,7 @@ const server = http.createServer((request, response) => {
   if (path === '/health' || path === '/') {
     let players = 0; for (const room of rooms.values()) players += room.size;
     response.writeHead(200, headers);
-    response.end(JSON.stringify({ ok: true, service: 'left-to-die-mp', protocol: PROTOCOL, world: 1, rev: 1, car: 1, hardened: 1, rooms: rooms.size, worlds: worlds.size, players, uptimeSeconds: Math.round((Date.now() - started) / 1000) }));
+    response.end(JSON.stringify({ ok: true, service: 'left-to-die-mp', protocol: PROTOCOL, world: 1, rev: 1, car: 1, ground: 1, hardened: 1, rooms: rooms.size, worlds: worlds.size, players, uptimeSeconds: Math.round((Date.now() - started) / 1000) }));
     return;
   }
   response.writeHead(404, headers); response.end('{"ok":false}');
@@ -202,12 +242,14 @@ wss.on('connection', socket => {
       }
       if (room.size >= MAX_ROOM_PLAYERS) { send(socket, { t: 'err', code: 'full', msg: 'A sala está cheia.' }); return; }
       player.id = 'p' + (nextId++).toString(36);
+      // Identidade do aparelho (fica igual ao reconectar): usada só para decidir disputas por itens.
+      player.cid = typeof message.cid === 'string' && /^[A-Za-z0-9_-]{8,40}$/.test(message.cid) ? message.cid : player.id;
       player.name = cleanName(message.name);
       player.room = code; player.state = null; player.profile = null;
       room.set(player.id, player);
       send(socket, {
-        t: 'welcome', id: player.id, room: code, now: now(), max: MAX_ROOM_PLAYERS, caps: ['world1', 'zk1', 'zm1', 'zh1', 'rev1', 'car1'],
-        world: (w => ({ doors: w.doors, loot: Object.fromEntries(w.loot), zdead: [...w.zdead], revs: [...w.revs].map(([id, v]) => ({ id, r: v.r, age: Date.now() - v.at, dead: v.dead, taken: [...v.taken] })), cars: Object.fromEntries(w.cars) }))(worldOf(code)),
+        t: 'welcome', id: player.id, room: code, now: now(), max: MAX_ROOM_PLAYERS, caps: ['world1', 'zk1', 'zm1', 'zh1', 'rev1', 'car1', 'gnd1', 'loot2'],
+        world: (w => ({ doors: w.doors, loot: Object.fromEntries(w.loot), zdead: [...w.zdead], revs: [...w.revs].map(([id, v]) => ({ id, r: v.r, age: Date.now() - v.at, dead: v.dead, taken: [...v.taken] })), cars: Object.fromEntries(w.cars), ground: [...w.ground] }))(worldOf(code)),
         players: [...room.values()].filter(other => other !== player).map(other => ({ id: other.id, name: other.name, p: other.profile, d: other.state, st: other.stateAt })),
       });
       broadcast(room, { t: 'join', id: player.id, name: player.name }, player);
