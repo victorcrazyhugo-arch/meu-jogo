@@ -1,0 +1,53 @@
+name: Site do jogo
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/site.yml
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Baixar o jogo 1.0.419 e o pacote do site
+        run: |
+          base="https://github.com/${{ github.repository }}/releases/download/Apk"
+          curl -fsSL --retry 3 -o jogo.zip "$base/Left-to-Die-1.0.419-com-APK.zip"
+          curl -fsSL --retry 3 -o pacote.zip "$base/site-jogo.zip"
+          echo "3c20a6faca3ecbe9570a0cfe0f1d30ef33f35b2b6539dddcf7ac7e5961d8d925  jogo.zip" | sha256sum -c -
+
+      - name: Montar e conferir o site
+        run: |
+          unzip -q jogo.zip 'Left-to-Die-1.0.419/jogo/*' -d base
+          unzip -q pacote.zip -d pacote
+          mkdir site
+          cp -a base/Left-to-Die-1.0.419/jogo/. site/
+          cp -a pacote/arquivos/. site/
+          cd site
+          sha256sum -c --quiet ../pacote/conferencia.sha256
+          find . -type f | sort > ../encontrados.txt
+          cut -c67- ../pacote/conferencia.sha256 | sort > ../esperados.txt
+          diff ../esperados.txt ../encontrados.txt
+          echo "Site conferido: $(wc -l < ../encontrados.txt) arquivos"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v5
