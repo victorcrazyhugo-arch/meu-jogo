@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - .github/workflows/site.yml
+      - site-jogo.zip
 
 permissions:
   contents: read
@@ -22,12 +23,14 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - name: Baixar o jogo 1.0.419 e o pacote do site
+      - uses: actions/checkout@v4
+
+      - name: Baixar o jogo 1.0.419
         run: |
           base="https://github.com/${{ github.repository }}/releases/download/Apk"
           curl -fsSL --retry 3 -o jogo.zip "$base/Left-to-Die-1.0.419-com-APK.zip"
-          curl -fsSL --retry 3 -o pacote.zip "$base/site-jogo.zip"
           echo "3c20a6faca3ecbe9570a0cfe0f1d30ef33f35b2b6539dddcf7ac7e5961d8d925  jogo.zip" | sha256sum -c -
+          cp site-jogo.zip pacote.zip
 
       - name: Montar e conferir o site
         run: |
