@@ -23,6 +23,15 @@ const MAX_GROUND = 6000, MAX_GROUND_FLOOR = 1500, MAX_GROUND_BYTES = 2000;   // 
 const RACE_MS = 60000;   // quem pegou um item há menos de 1 minuto: outro que pegar o mesmo item perde a disputa
 const WORLD_KEEP_MS = 6 * 60 * 60 * 1000;   // sala vazia mantém o mundo por 6 horas
 const MAX_CHAT_CHARS = 200;
+// Semana da sala: a cada 7 dias reais (virada na segunda-feira, 0h de Brasília) os aparelhos fazem parte do loot
+// reaparecer. O servidor só marca a virada, avisa quem está na sala e guarda se algum aparelho já fez a reposição
+// desta semana (quem chega depois recebe os móveis prontos e não repete).
+const WEEK_MS = 604800000, WEEK_OFFSET = 356400000, WEEK_TEST = process.env.WEEK_TEST === '1';   // WEEK_TEST: só nos testes automáticos
+let weekShift = 0;
+const weekNow = () => Math.floor((Date.now() - WEEK_OFFSET) / WEEK_MS) + weekShift;
+// Peças trocáveis de um carro. Sem registro na sala, vale a peça de fábrica.
+const PART_SLOTS = ['sparkPlug', 'battery', 'radiator', 'tireFrontLeft', 'tireFrontRight', 'tireRearLeft', 'tireRearRight', 'suspensionFrontLeft', 'suspensionFrontRight', 'suspensionRearLeft', 'suspensionRearRight'];
+const partOf = (record, slot) => (isObject(record.mechanicalParts) && Object.hasOwn(record.mechanicalParts, slot) ? record.mechanicalParts[slot] : 'vehicle-part:' + record.id + ':' + slot);
 const MAX_RTC_BYTES = 16 * 1024;   // combinação da conexão de voz entre dois jogadores
 const RTC_RANGE = 160;             // metros: só jogadores próximos combinam conexão de voz
 // Servidores de apoio da conexão de voz (opcional): ICE_SERVERS='[{"urls":"turn:...","username":"...","credential":"..."}]'
@@ -54,9 +63,17 @@ function broadcast(room, message, except) {
     if (player.socket.readyState === 1 && player.socket.bufferedAmount < 256 * 1024) { player.socket.send(text); relayed++; }
   }
 }
+function turnWeek(code) {
+  const world = worldOf(code), week = weekNow();
+  if (world.week !== week) {
+    world.week = week; world.refilled = false;
+    const room = rooms.get(code); if (room) broadcast(room, { t: 'week', week }, null);
+  }
+  return week;
+}
 function worldOf(code) {
   let world = worlds.get(code);
-  if (!world) { world = { doors: Object.create(null), doorCount: 0, loot: new Map(), lootGone: new Map(), zdead: new Map(), revs: new Map(), cars: new Map(), ground: new Map(), groundFloor: 0, groundBy: new Map(), touched: Date.now() }; worlds.set(code, world); }
+  if (!world) { world = { doors: Object.create(null), doorCount: 0, loot: new Map(), lootGone: new Map(), zdead: new Map(), revs: new Map(), cars: new Map(), ground: new Map(), groundFloor: 0, groundBy: new Map(), touched: Date.now(), week: weekNow() }; worlds.set(code, world); }
   world.touched = Date.now();
   return world;
 }
@@ -113,17 +130,32 @@ function handleWorld(player, room, message) {
     // Carros: a semente só entra se a sala ainda não conhece aquele carro (quem chegou primeiro define a frota);
     // uma atualização (carro estacionado, resumo de quem dirige) sempre substitui.
     const seeding = !isObject(message.c), source = seeding ? message.seed : message.c, changed = {}, back = {};
-    let any = false, anyBack = false;
+    let any = false, anyBack = false, okay = null, deny = null;
     for (const key of Object.keys(source).slice(0, MAX_CARS)) {
       const value = source[key];
       if (!goodKey(key) || !isObject(value) || value.id !== key || JSON.stringify(value).length > MAX_CAR_BYTES) continue;
       const known = world.cars.has(key);
       if (seeding && known) { back[key] = world.cars.get(key); anyBack = true; continue; }
       if (!known && world.cars.size >= MAX_CARS) continue;
+      // Troca de peça: quem manda declara a peça que viu instalada (exp). Se outro jogador já mexeu nela, a troca
+      // é recusada e vale o que a sala tem; assim a mesma peça nunca vai para dois inventários.
+      if (known && message.pv === 1 && !key.startsWith('tr:')) {
+        const old = world.cars.get(key), exp = isObject(message.exp) && isObject(message.exp[key]) ? message.exp[key] : null;
+        let fixed = false;
+        for (const slot of PART_SLOTS) {
+          const declared = !!exp && Object.hasOwn(exp, slot), a = partOf(old, slot), b = partOf(value, slot);
+          if (a === b || (declared && exp[slot] === a)) { if (declared) { if (!okay) okay = {}; if (!okay[key]) okay[key] = []; okay[key].push(slot); } continue; }
+          if (!isObject(value.mechanicalParts)) value.mechanicalParts = {};
+          if (isObject(old.mechanicalParts) && Object.hasOwn(old.mechanicalParts, slot)) value.mechanicalParts[slot] = old.mechanicalParts[slot]; else delete value.mechanicalParts[slot];
+          if (isObject(value.condition) && isObject(old.condition) && Number.isFinite(old.condition[slot])) value.condition[slot] = old.condition[slot];
+          fixed = true; if (declared) { if (!deny) deny = {}; if (!deny[key]) deny[key] = []; deny[key].push(slot); }
+        }
+        if (fixed) { back[key] = value; anyBack = true; }
+      }
       world.cars.set(key, value); changed[key] = value; any = true;
     }
     if (any) broadcast(room, { t: 'w', k: 'car', c: changed }, player);
-    if (anyBack) send(player.socket, { t: 'w', k: 'car', c: back });   // semente atrasada: vale o que a sala já tinha
+    if (anyBack || okay || deny) send(player.socket, { t: 'w', k: 'car', c: back, ...(okay ? { ok: okay } : {}), ...(deny ? { deny } : {}) });   // semente atrasada ou troca de peça: vale o que a sala tem
   } else if (message.k === 'gnd' && Array.isArray(message.ops)) {
     // Itens no chão: [id, registro] = está no chão (posição e dados do item); [id, 0] = alguém pegou.
     // A semente (quem entra) não troca o que a sala já sabe.
@@ -252,7 +284,7 @@ wss.on('connection', socket => {
       player.room = code; player.state = null; player.profile = null;
       room.set(player.id, player);
       send(socket, {
-        t: 'welcome', id: player.id, room: code, now: now(), max: MAX_ROOM_PLAYERS, caps: ['world1', 'zk1', 'zm1', 'zh1', 'rev1', 'car1', 'gnd1', 'loot2', 'ack1', 'rtc1'], ...(ICE_SERVERS ? { ice: ICE_SERVERS } : {}),
+        t: 'welcome', id: player.id, room: code, now: now(), week: turnWeek(code), refilled: worldOf(code).refilled === true, max: MAX_ROOM_PLAYERS, caps: ['world1', 'zk1', 'zm1', 'zh1', 'rev1', 'car1', 'gnd1', 'loot2', 'ack1', 'rtc1', 'carp1', 'week1'], ...(ICE_SERVERS ? { ice: ICE_SERVERS } : {}),
         world: (w => ({ doors: w.doors, loot: Object.fromEntries(w.loot), zdead: [...w.zdead], revs: [...w.revs].map(([id, v]) => ({ id, r: v.r, age: Date.now() - v.at, dead: v.dead, taken: [...v.taken] })), cars: Object.fromEntries(w.cars), ground: [...w.ground] }))(worldOf(code)),
         players: [...room.values()].filter(other => other !== player).map(other => ({ id: other.id, name: other.name, p: other.profile, d: other.state, st: other.stateAt })),
       });
@@ -315,6 +347,9 @@ wss.on('connection', socket => {
       // Confirmação: o jogo reenvia a mudança do mundo que não for confirmada (mensagem descartada pelo limite).
       if (Number.isInteger(message.q) && message.q > 0) send(player.socket, { t: 'w', k: 'ack', q: message.q });
       try { handleWorld(player, room, message); } catch {}
+    } else if (message.t === 'week') {
+      const world = worldOf(player.room); if (Number.isInteger(message.done) && message.done === world.week) world.refilled = true;
+      if (WEEK_TEST && message.bump === 1) { weekShift++; turnWeek(player.room); }   // teste: vira a semana agora
     } else if (message.t === 'rtc') {
       // Voz por proximidade: a voz vai direto de um aparelho para o outro; aqui só passa a combinação da conexão,
       // e só entre jogadores da mesma sala que estão perto um do outro.
@@ -346,7 +381,7 @@ setInterval(() => {
     try { socket.ping(); } catch {}
   }
   for (const [code, world] of worlds) if (!rooms.has(code) && time - world.touched > WORLD_KEEP_MS) worlds.delete(code);
-  for (const code of rooms.keys()) { const world = worlds.get(code); if (world) world.touched = time; }
+  for (const code of rooms.keys()) { const world = worlds.get(code); if (world) world.touched = time; turnWeek(code); }
 }, 20000).unref();
 
 server.listen(PORT, '0.0.0.0', () => console.log(`Left to Die MP ouvindo na porta ${PORT}`));
