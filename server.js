@@ -23,7 +23,7 @@ const MAX_GROUND = 6000, MAX_GROUND_FLOOR = 1500, MAX_GROUND_BYTES = 2000;   // 
 const RACE_MS = 60000;   // quem pegou um item há menos de 1 minuto: outro que pegar o mesmo item perde a disputa
 const WORLD_KEEP_MS = 6 * 60 * 60 * 1000;   // sala vazia mantém o mundo por 6 horas
 const MAX_CHAT_CHARS = 200;
-const RATE_PER_SECOND = 45;      // mensagens por segundo por conexão
+const RATE_PER_SECOND = 90;      // mensagens por segundo por conexão
 const BYTE_RATE = 1.5 * 1024 * 1024;   // volume de dados por segundo por conexão (anti-amplificação)
 const CHAT_COOLDOWN_MS = 600, HELLO_COOLDOWN_MS = 750, PROFILE_COOLDOWN_MS = 350;   // anti-spam por conexão
 const IDLE_MS = 45000;           // sem mensagens => desconecta
@@ -188,7 +188,7 @@ const server = http.createServer((request, response) => {
   if (path === '/health' || path === '/') {
     let players = 0; for (const room of rooms.values()) players += room.size;
     response.writeHead(200, headers);
-    response.end(JSON.stringify({ ok: true, service: 'left-to-die-mp', protocol: PROTOCOL, world: 1, rev: 1, car: 1, ground: 1, hardened: 1, rooms: rooms.size, worlds: worlds.size, players, uptimeSeconds: Math.round((Date.now() - started) / 1000) }));
+    response.end(JSON.stringify({ ok: true, service: 'left-to-die-mp', protocol: PROTOCOL, world: 1, rev: 1, car: 1, ground: 1, ack: 1, hardened: 1, rooms: rooms.size, worlds: worlds.size, players, uptimeSeconds: Math.round((Date.now() - started) / 1000) }));
     return;
   }
   response.writeHead(404, headers); response.end('{"ok":false}');
@@ -248,7 +248,7 @@ wss.on('connection', socket => {
       player.room = code; player.state = null; player.profile = null;
       room.set(player.id, player);
       send(socket, {
-        t: 'welcome', id: player.id, room: code, now: now(), max: MAX_ROOM_PLAYERS, caps: ['world1', 'zk1', 'zm1', 'zh1', 'rev1', 'car1', 'gnd1', 'loot2'],
+        t: 'welcome', id: player.id, room: code, now: now(), max: MAX_ROOM_PLAYERS, caps: ['world1', 'zk1', 'zm1', 'zh1', 'rev1', 'car1', 'gnd1', 'loot2', 'ack1'],
         world: (w => ({ doors: w.doors, loot: Object.fromEntries(w.loot), zdead: [...w.zdead], revs: [...w.revs].map(([id, v]) => ({ id, r: v.r, age: Date.now() - v.at, dead: v.dead, taken: [...v.taken] })), cars: Object.fromEntries(w.cars), ground: [...w.ground] }))(worldOf(code)),
         players: [...room.values()].filter(other => other !== player).map(other => ({ id: other.id, name: other.name, p: other.profile, d: other.state, st: other.stateAt })),
       });
@@ -308,6 +308,8 @@ wss.on('connection', socket => {
       broadcast(room, relay, player);
     } else if (message.t === 'w') {
       if (data.length > MAX_WORLD_BYTES) return;
+      // Confirmação: o jogo reenvia a mudança do mundo que não for confirmada (mensagem descartada pelo limite).
+      if (Number.isInteger(message.q) && message.q > 0) send(player.socket, { t: 'w', k: 'ack', q: message.q });
       try { handleWorld(player, room, message); } catch {}
     } else if (message.t === 'c') {
       const text = String(message.m ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, MAX_CHAT_CHARS);
