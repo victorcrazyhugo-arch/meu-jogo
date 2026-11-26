@@ -27,8 +27,12 @@ const MAX_CHAT_CHARS = 200;
 // reaparecer. O servidor só marca a virada, avisa quem está na sala e guarda se algum aparelho já fez a reposição
 // desta semana (quem chega depois recebe os móveis prontos e não repete).
 const WEEK_MS = 604800000, WEEK_OFFSET = 356400000, WEEK_TEST = process.env.WEEK_TEST === '1';   // WEEK_TEST: só nos testes automáticos
+// WEEK_EXTRA: reposições fora de hora. Cada vez que este número sobe (aqui ou na variável WEEK_EXTRA do Render)
+// a sala oficial ganha uma reposição na hora, sem mudar a virada normal de segunda-feira.
+// 1 = reposição extra pedida pelo dono do jogo em 25/11/2026.
+const WEEK_EXTRA = Number.isInteger(Number(process.env.WEEK_EXTRA)) && process.env.WEEK_EXTRA !== undefined && process.env.WEEK_EXTRA !== '' ? Number(process.env.WEEK_EXTRA) : 1;
 let weekShift = 0;
-const weekNow = () => Math.floor((Date.now() - WEEK_OFFSET) / WEEK_MS) + weekShift;
+const weekNow = () => Math.floor((Date.now() - WEEK_OFFSET) / WEEK_MS) + WEEK_EXTRA + weekShift;
 // Peças trocáveis de um carro. Sem registro na sala, vale a peça de fábrica.
 const PART_SLOTS = ['sparkPlug', 'battery', 'radiator', 'tireFrontLeft', 'tireFrontRight', 'tireRearLeft', 'tireRearRight', 'suspensionFrontLeft', 'suspensionFrontRight', 'suspensionRearLeft', 'suspensionRearRight'];
 const partOf = (record, slot) => (isObject(record.mechanicalParts) && Object.hasOwn(record.mechanicalParts, slot) ? record.mechanicalParts[slot] : 'vehicle-part:' + record.id + ':' + slot);
@@ -63,7 +67,13 @@ function broadcast(room, message, except) {
     if (player.socket.readyState === 1 && player.socket.bufferedAmount < 256 * 1024) { player.socket.send(text); relayed++; }
   }
 }
+// Só a sala oficial tem reposição semanal de loot. As outras salas não recebem "semana" e nunca repõem.
+// (Dá para trocar a sala oficial no Render com a variável OFFICIAL_ROOM, sem mexer no jogo.)
+const OFFICIAL_ROOM = cleanRoom(process.env.OFFICIAL_ROOM || 'LTDOFICIAL');
+// Só existe o servidor oficial: ninguém cria outra sala. (OPEN_ROOMS=1 libera salas à parte, só para os testes.)
+const OPEN_ROOMS = process.env.OPEN_ROOMS === '1';
 function turnWeek(code) {
+  if (code !== OFFICIAL_ROOM) return null;
   const world = worldOf(code), week = weekNow();
   if (world.week !== week) {
     world.week = week; world.refilled = false;
@@ -224,7 +234,7 @@ const server = http.createServer((request, response) => {
   if (path === '/health' || path === '/') {
     let players = 0; for (const room of rooms.values()) players += room.size;
     response.writeHead(200, headers);
-    response.end(JSON.stringify({ ok: true, service: 'left-to-die-mp', protocol: PROTOCOL, world: 1, rev: 1, car: 1, ground: 1, ack: 1, voice: 1, hardened: 1, rooms: rooms.size, worlds: worlds.size, players, uptimeSeconds: Math.round((Date.now() - started) / 1000) }));
+    response.end(JSON.stringify({ ok: true, service: 'left-to-die-mp', protocol: PROTOCOL, world: 1, rev: 1, car: 1, ground: 1, ack: 1, voice: 1, official: OFFICIAL_ROOM, onlyOfficial: OPEN_ROOMS ? 0 : 1, hardened: 1, rooms: rooms.size, worlds: worlds.size, players, uptimeSeconds: Math.round((Date.now() - started) / 1000) }));
     return;
   }
   response.writeHead(404, headers); response.end('{"ok":false}');
@@ -271,12 +281,13 @@ wss.on('connection', socket => {
       if (Number(message.v) !== PROTOCOL) { send(socket, { t: 'err', code: 'version', msg: 'Versão do jogo diferente da versão do servidor.' }); return; }
       const code = cleanRoom(message.room);
       if (!code) { send(socket, { t: 'err', code: 'room', msg: 'Informe o código da sala.' }); return; }
+      if (code !== OFFICIAL_ROOM && !OPEN_ROOMS) { send(socket, { t: 'err', code: 'room', msg: 'Agora só existe o servidor oficial ' + OFFICIAL_ROOM + '. Atualize o jogo ou use esse código de sala.' }); return; }
       let room = rooms.get(code);
       if (!room) {
         if (rooms.size >= MAX_ROOMS) { send(socket, { t: 'err', code: 'busy', msg: 'Servidor cheio. Tente mais tarde.' }); return; }
         room = new Map(); rooms.set(code, room);
       }
-      if (room.size >= MAX_ROOM_PLAYERS) { send(socket, { t: 'err', code: 'full', msg: 'A sala está cheia.' }); return; }
+      if (room.size >= MAX_ROOM_PLAYERS) { send(socket, { t: 'err', code: 'full', msg: 'O servidor está cheio (' + MAX_ROOM_PLAYERS + ' jogadores). Tente de novo daqui a pouco.' }); return; }
       player.id = 'p' + (nextId++).toString(36);
       // Identidade do aparelho (fica igual ao reconectar): usada só para decidir disputas por itens.
       player.cid = typeof message.cid === 'string' && /^[A-Za-z0-9_-]{8,40}$/.test(message.cid) ? message.cid : player.id;
@@ -348,6 +359,7 @@ wss.on('connection', socket => {
       if (Number.isInteger(message.q) && message.q > 0) send(player.socket, { t: 'w', k: 'ack', q: message.q });
       try { handleWorld(player, room, message); } catch {}
     } else if (message.t === 'week') {
+      if (player.room !== OFFICIAL_ROOM) return;
       const world = worldOf(player.room); if (Number.isInteger(message.done) && message.done === world.week) world.refilled = true;
       if (WEEK_TEST && message.bump === 1) { weekShift++; turnWeek(player.room); }   // teste: vira a semana agora
     } else if (message.t === 'rtc') {
