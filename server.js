@@ -18,7 +18,8 @@ const MAX_REVS = 40, MAX_REV_BYTES = 60 * 1024;   // zumbis de jogadores mortos 
 const MAX_CARS = 160, MAX_CAR_BYTES = 8 * 1024;    // carros e carretas parados (posição, combustível, peças)
 const MAX_PROFILE_BYTES = 96 * 1024;
 const MAX_WORLD_BYTES = 400 * 1024;   // uma mensagem de mundo (semente de portas, baú grande)
-const MAX_DOORS = 8000, MAX_CONTAINERS = 6000, MAX_CONTAINER_ITEMS = 240, MAX_DEAD_ZOMBIES = 60000;
+// v37: o mapa ganhou 44 casas (800 baús, 514 portas, 619 janelas), então os tetos subiram junto
+const MAX_DOORS = 16000, MAX_CONTAINERS = 9000, MAX_CONTAINER_ITEMS = 240, MAX_DEAD_ZOMBIES = 60000;
 const MAX_GROUND = 6000, MAX_GROUND_FLOOR = 1500, MAX_GROUND_BYTES = 2000;   // itens no chão: os que estão no chão e os que já foram pegos
 const RACE_MS = 60000;   // quem pegou um item há menos de 1 minuto: outro que pegar o mesmo item perde a disputa
 const WORLD_KEEP_MS = 6 * 60 * 60 * 1000;   // sala vazia mantém o mundo por 6 horas
@@ -72,6 +73,9 @@ function broadcast(room, message, except) {
 const OFFICIAL_ROOM = cleanRoom(process.env.OFFICIAL_ROOM || 'LTDOFICIAL');
 // Só existe o servidor oficial: ninguém cria outra sala. (OPEN_ROOMS=1 libera salas à parte, só para os testes.)
 const OPEN_ROOMS = process.env.OPEN_ROOMS === '1';
+// Mapa mínimo para entrar: a v37 ampliou Cedros, Aurora e Livena. Quem está com o mapa antigo não veria as casas novas
+// (atravessaria as paredes delas), então é avisado para atualizar. MIN_MAP=0 desliga a exigência.
+const MIN_MAP = Math.max(0, Math.floor(Number(process.env.MIN_MAP ?? 37)) || 0);
 function turnWeek(code) {
   if (code !== OFFICIAL_ROOM) return null;
   const world = worldOf(code), week = weekNow();
@@ -234,7 +238,7 @@ const server = http.createServer((request, response) => {
   if (path === '/health' || path === '/') {
     let players = 0; for (const room of rooms.values()) players += room.size;
     response.writeHead(200, headers);
-    response.end(JSON.stringify({ ok: true, service: 'left-to-die-mp', protocol: PROTOCOL, world: 1, rev: 1, car: 1, ground: 1, ack: 1, voice: 1, official: OFFICIAL_ROOM, onlyOfficial: OPEN_ROOMS ? 0 : 1, hardened: 1, rooms: rooms.size, worlds: worlds.size, players, uptimeSeconds: Math.round((Date.now() - started) / 1000) }));
+    response.end(JSON.stringify({ ok: true, service: 'left-to-die-mp', protocol: PROTOCOL, world: 1, rev: 1, car: 1, ground: 1, ack: 1, voice: 1, official: OFFICIAL_ROOM, onlyOfficial: OPEN_ROOMS ? 0 : 1, map: MIN_MAP, hardened: 1, rooms: rooms.size, worlds: worlds.size, players, uptimeSeconds: Math.round((Date.now() - started) / 1000) }));
     return;
   }
   response.writeHead(404, headers); response.end('{"ok":false}');
@@ -279,6 +283,7 @@ wss.on('connection', socket => {
       player.lastHello = time;
       if (player.room) leave(player);
       if (Number(message.v) !== PROTOCOL) { send(socket, { t: 'err', code: 'version', msg: 'Versão do jogo diferente da versão do servidor.' }); return; }
+      if ((Math.floor(Number(message.map)) || 0) < MIN_MAP) { send(socket, { t: 'err', code: 'version', msg: 'O mapa do servidor foi ampliado. Atualize o jogo para a versão mais nova (v' + MIN_MAP + ' ou mais) para entrar.' }); return; }
       const code = cleanRoom(message.room);
       if (!code) { send(socket, { t: 'err', code: 'room', msg: 'Informe o código da sala.' }); return; }
       if (code !== OFFICIAL_ROOM && !OPEN_ROOMS) { send(socket, { t: 'err', code: 'room', msg: 'Agora só existe o servidor oficial ' + OFFICIAL_ROOM + '. Atualize o jogo ou use esse código de sala.' }); return; }
