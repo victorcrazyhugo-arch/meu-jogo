@@ -15,6 +15,8 @@ const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 300;
 const MAX_CONNECTIONS = Number(process.env.MAX_CONNECTIONS) || 600;
 const MAX_STATE_BYTES = 4096;
 const MAX_REVS = 40, MAX_REV_BYTES = 60 * 1024;   // zumbis de jogadores mortos guardados por sala
+// Corpo de jogador (morto por outro jogador, ou o zumbi dele depois de morto) some 1 h depois, com os itens.
+const CORPSE_MS = Math.max(1000, Number(process.env.CORPSE_MS) || 60 * 60 * 1000), MAX_REV_GONE = 500;
 const MAX_CARS = 160, MAX_CAR_BYTES = 8 * 1024;    // carros e carretas parados (posição, combustível, peças)
 const MAX_PROFILE_BYTES = 96 * 1024;
 const MAX_WORLD_BYTES = 400 * 1024;   // uma mensagem de mundo (semente de portas, baú grande)
@@ -87,7 +89,7 @@ function turnWeek(code) {
 }
 function worldOf(code) {
   let world = worlds.get(code);
-  if (!world) { world = { doors: Object.create(null), doorCount: 0, loot: new Map(), lootGone: new Map(), zdead: new Map(), revs: new Map(), cars: new Map(), ground: new Map(), groundFloor: 0, groundBy: new Map(), touched: Date.now(), week: weekNow() }; worlds.set(code, world); }
+  if (!world) { world = { doors: Object.create(null), doorCount: 0, loot: new Map(), lootGone: new Map(), zdead: new Map(), revs: new Map(), cars: new Map(), ground: new Map(), groundFloor: 0, groundBy: new Map(), revGone: new Map(), touched: Date.now(), week: weekNow() }; worlds.set(code, world); }
   world.touched = Date.now();
   return world;
 }
@@ -111,6 +113,7 @@ function handleWorld(player, room, message) {
   } else if (message.k === 'rev' && Number.isInteger(message.id) && message.id >= 1000000 && message.id < 1e9) {
     // Zumbi de um jogador morto: o registro (aparência, equipamento e itens) fica na sala para quem entrar depois.
     const id = message.id; let entry = world.revs.get(id);
+    if (world.revGone.has(id)) { send(player.socket, { t: 'w', k: 'rev', id, gone: 1 }); return; }   // corpo já apagado: o aparelho apaga também
     if (isObject(message.r)) {
       if (entry) return;                                                       // já conhecido
       const text = JSON.stringify(message.r);
@@ -120,7 +123,7 @@ function handleWorld(player, room, message) {
       broadcast(room, { t: 'w', k: 'rev', id, r: entry.r, age: 0 }, player);
     } else if (entry && Array.isArray(message.dead) && message.dead.length === 3 && message.dead.every(Number.isFinite)) {
       if (entry.dead) return;                                                   // os itens caem uma vez só
-      entry.dead = message.dead.map(v => Math.round(v * 100) / 100);
+      entry.dead = message.dead.map(v => Math.round(v * 100) / 100); entry.deadAt = Date.now();
       broadcast(room, { t: 'w', k: 'rev', id, dead: entry.dead }, player);
     } else if (entry && Array.isArray(message.take)) {
       const fresh = [];
@@ -221,6 +224,22 @@ function handleWorld(player, room, message) {
     if (full && JSON.stringify(full) !== JSON.stringify(list)) send(player.socket, { t: 'w', k: 'loot', id, v: list });
   }
 }
+// Apaga os corpos de jogadores com mais de 1 h: o registro, o saque do cadáver e os itens que ficaram no chão.
+function expireCorpses(code, world, time = Date.now()) {
+  const room = rooms.get(code), groundOps = [];
+  for (const [id, entry] of world.revs) {
+    const since = entry.r?.pvp ? entry.at : entry.deadAt;
+    if (!since || time - since <= CORPSE_MS) continue;
+    world.revs.delete(id); world.loot.delete('corpse43:' + id); world.lootGone.delete('corpse43:' + id);
+    for (const item of Array.isArray(entry.r?.cargo) ? entry.r.cargo : []) {
+      const key = item && item.id != null ? String(item.id) : null, known = key && world.ground.get(key);
+      if (known) { world.ground.set(key, 0); world.groundFloor--; groundOps.push([key, 0]); }
+    }
+    world.revGone.set(id, time); if (world.revGone.size > MAX_REV_GONE) world.revGone.delete(world.revGone.keys().next().value);
+    if (room) broadcast(room, { t: 'w', k: 'rev', id, gone: 1 }, null);
+  }
+  if (room && groundOps.length) for (let i = 0; i < groundOps.length; i += 120) broadcast(room, { t: 'w', k: 'gnd', ops: groundOps.slice(i, i + 120) }, null);
+}
 function leave(player) {
   if (!player.room) return;
   const room = rooms.get(player.room);
@@ -238,7 +257,7 @@ const server = http.createServer((request, response) => {
   if (path === '/health' || path === '/') {
     let players = 0; for (const room of rooms.values()) players += room.size;
     response.writeHead(200, headers);
-    response.end(JSON.stringify({ ok: true, service: 'left-to-die-mp', protocol: PROTOCOL, world: 1, rev: 1, car: 1, ground: 1, ack: 1, voice: 1, official: OFFICIAL_ROOM, onlyOfficial: OPEN_ROOMS ? 0 : 1, map: MIN_MAP, hardened: 1, rooms: rooms.size, worlds: worlds.size, players, uptimeSeconds: Math.round((Date.now() - started) / 1000) }));
+    response.end(JSON.stringify({ ok: true, service: 'left-to-die-mp', protocol: PROTOCOL, world: 1, rev: 1, car: 1, ground: 1, ack: 1, voice: 1, corpse: Math.round(CORPSE_MS / 60000), official: OFFICIAL_ROOM, onlyOfficial: OPEN_ROOMS ? 0 : 1, map: MIN_MAP, hardened: 1, rooms: rooms.size, worlds: worlds.size, players, uptimeSeconds: Math.round((Date.now() - started) / 1000) }));
     return;
   }
   response.writeHead(404, headers); response.end('{"ok":false}');
@@ -301,7 +320,7 @@ wss.on('connection', socket => {
       room.set(player.id, player);
       send(socket, {
         t: 'welcome', id: player.id, room: code, now: now(), week: turnWeek(code), refilled: worldOf(code).refilled === true, max: MAX_ROOM_PLAYERS, caps: ['world1', 'zk1', 'zm1', 'zh1', 'rev1', 'car1', 'gnd1', 'loot2', 'ack1', 'rtc1', 'carp1', 'week1'], ...(ICE_SERVERS ? { ice: ICE_SERVERS } : {}),
-        world: (w => ({ doors: w.doors, loot: Object.fromEntries(w.loot), zdead: [...w.zdead], revs: [...w.revs].map(([id, v]) => ({ id, r: v.r, age: Date.now() - v.at, dead: v.dead, taken: [...v.taken] })), cars: Object.fromEntries(w.cars), ground: [...w.ground] }))(worldOf(code)),
+        world: (w => (expireCorpses(code, w), { doors: w.doors, loot: Object.fromEntries(w.loot), zdead: [...w.zdead], revs: [...w.revs].map(([id, v]) => ({ id, r: v.r, age: Date.now() - v.at, dead: v.dead, taken: [...v.taken] })), revGone: [...w.revGone.keys()], cars: Object.fromEntries(w.cars), ground: [...w.ground] }))(worldOf(code)),
         players: [...room.values()].filter(other => other !== player).map(other => ({ id: other.id, name: other.name, p: other.profile, d: other.state, st: other.stateAt })),
       });
       broadcast(room, { t: 'join', id: player.id, name: player.name }, player);
@@ -398,6 +417,7 @@ setInterval(() => {
     try { socket.ping(); } catch {}
   }
   for (const [code, world] of worlds) if (!rooms.has(code) && time - world.touched > WORLD_KEEP_MS) worlds.delete(code);
+  for (const [code, world] of worlds) expireCorpses(code, world, time);
   for (const code of rooms.keys()) { const world = worlds.get(code); if (world) world.touched = time; turnWeek(code); }
 }, 20000).unref();
 
